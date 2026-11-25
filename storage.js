@@ -1,13 +1,53 @@
 /**
- * StorageAdapter - Capa de Persistencia Híbrida (Supabase BaaS + LocalStorage Fallback)
+ * StorageAdapter - Capa de Persistencia Híbrida (Supabase BaaS + LocalStorage)
  * Con Autenticación y Control de Acceso Basado en Roles (RBAC: Admin vs Doctor)
+ * Proyecto Supabase: https://qidwrxlfovuchxgzcdln.supabase.co
  */
 
-const STORAGE_KEY_CONFIG = 'cp_dental_config';
-const STORAGE_KEY_DATA = 'cp_dental_data_v2';
-const STORAGE_KEY_SESSION = 'cp_dental_session';
+const STORAGE_KEY_CONFIG = 'cp_dental_config_v3';
+const STORAGE_KEY_DATA = 'cp_dental_data_v3';
+const STORAGE_KEY_SESSION = 'cp_dental_session_v3';
 
-// Cuentas y datos iniciales de demostración
+// 32 Piezas Dentales Permanentes (Norma FDI Internacional)
+// Arcada Superior: 18 al 28 (16 piezas) | Arcada Inferior: 48 al 38 (16 piezas)
+const DEFAULT_32_TEETH = [
+  // --- ARCADA SUPERIOR (MAXILAR) ---
+  { id: 18, arch: 'superior', nombre: 'Pieza 18: 3er Molar Sup. Der.', x: 136.6, y: 278.9, estado: 'realizado', notas: 'Tratamiento concluido' },
+  { id: 17, arch: 'superior', nombre: 'Pieza 17: 2do Molar Sup. Der.', x: 133.1, y: 336.9, estado: 'realizado', notas: 'Sano' },
+  { id: 16, arch: 'superior', nombre: 'Pieza 16: 1er Molar Sup. Der.', x: 146.0, y: 222.4, estado: 'realizado', notas: 'Corona recomendada' },
+  { id: 15, arch: 'superior', nombre: 'Pieza 15: 2do Premolar Sup. Der.', x: 158.3, y: 175.3, estado: 'no_realizado', notas: 'Sensibilidad en frío' },
+  { id: 14, arch: 'superior', nombre: 'Pieza 14: 1er Premolar Sup. Der.', x: 177.2, y: 141.4, estado: 'no_realizado', notas: 'Requiere valoración de resina' },
+  { id: 13, arch: 'superior', nombre: 'Pieza 13: Canino Sup. Der.', x: 196.1, y: 107.5, estado: 'no_realizado', notas: 'Sin anomalías' },
+  { id: 12, arch: 'superior', nombre: 'Pieza 12: Incisivo Lat. Sup. Der.', x: 224.4, y: 76.9, estado: 'no_realizado', notas: 'Profilaxis pendiente' },
+  { id: 11, arch: 'superior', nombre: 'Pieza 11: Incisivo Central Sup. Der.', x: 262.8, y: 58.0, estado: 'no_realizado', notas: 'Carilla estética' },
+  { id: 21, arch: 'superior', nombre: 'Pieza 21: Incisivo Central Sup. Izq.', x: 314.6, y: 58.0, estado: 'no_realizado', notas: 'Blanqueamiento indicado' },
+  { id: 22, arch: 'superior', nombre: 'Pieza 22: Incisivo Lat. Sup. Izq.', x: 352.9, y: 76.9, estado: 'no_realizado', notas: 'Control' },
+  { id: 23, arch: 'superior', nombre: 'Pieza 23: Canino Sup. Izq.', x: 379.6, y: 107.5, estado: 'no_realizado', notas: 'Sano' },
+  { id: 24, arch: 'superior', nombre: 'Pieza 24: 1er Premolar Sup. Izq.', x: 398.4, y: 141.4, estado: 'no_realizado', notas: 'Obturación previa' },
+  { id: 25, arch: 'superior', nombre: 'Pieza 25: 2do Premolar Sup. Izq.', x: 418.7, y: 175.3, estado: 'no_realizado', notas: 'Revisión periódica' },
+  { id: 26, arch: 'superior', nombre: 'Pieza 26: 1er Molar Sup. Izq.', x: 428.1, y: 222.4, estado: 'realizado', notas: 'Endodoncia efectuada' },
+  { id: 27, arch: 'superior', nombre: 'Pieza 27: 2do Molar Sup. Izq.', x: 437.6, y: 278.9, estado: 'realizado', notas: 'Sin caries activa' },
+  { id: 28, arch: 'superior', nombre: 'Pieza 28: 3er Molar Sup. Izq.', x: 437.6, y: 336.9, estado: 'realizado', notas: 'Erupción completa' },
+
+  // --- ARCADA INFERIOR (MANDÍBULA) ---
+  { id: 48, arch: 'inferior', nombre: 'Pieza 48: 3er Molar Inf. Der.', x: 128.8, y: 67.6, estado: 'realizado', notas: 'Extracción quirúrgica' },
+  { id: 47, arch: 'inferior', nombre: 'Pieza 47: 2do Molar Inf. Der.', x: 137.7, y: 131.3, estado: 'realizado', notas: 'Sellador aplicado' },
+  { id: 46, arch: 'inferior', nombre: 'Pieza 46: 1er Molar Inf. Der.', x: 156.6, y: 193.2, estado: 'realizado', notas: 'Incrustación estética' },
+  { id: 45, arch: 'inferior', nombre: 'Pieza 45: 2do Premolar Inf. Der.', x: 168.4, y: 245.6, estado: 'no_realizado', notas: 'Caries oclusal incipiente' },
+  { id: 44, arch: 'inferior', nombre: 'Pieza 44: 1er Premolar Inf. Der.', x: 187.3, y: 279.1, estado: 'no_realizado', notas: 'Sensibilidad térmica' },
+  { id: 43, arch: 'inferior', nombre: 'Pieza 43: Canino Inf. Der.', x: 211.3, y: 312.1, estado: 'no_realizado', notas: 'Sano' },
+  { id: 42, arch: 'inferior', nombre: 'Pieza 42: Incisivo Lat. Inf. Der.', x: 243.8, y: 327.5, estado: 'no_realizado', notas: 'Alineación pendiente' },
+  { id: 41, arch: 'inferior', nombre: 'Pieza 41: Incisivo Central Inf. Der.', x: 271.8, y: 337.0, estado: 'no_realizado', notas: 'Higiene adecuada' },
+  { id: 31, arch: 'inferior', nombre: 'Pieza 31: Incisivo Central Inf. Izq.', x: 303.4, y: 337.0, estado: 'no_realizado', notas: 'Control de sarro' },
+  { id: 32, arch: 'inferior', nombre: 'Pieza 32: Incisivo Lat. Inf. Izq.', x: 335.0, y: 329.7, estado: 'no_realizado', notas: 'Sin patologías' },
+  { id: 33, arch: 'inferior', nombre: 'Pieza 33: Canino Inf. Izq.', x: 366.6, y: 312.1, estado: 'no_realizado', notas: 'Sano' },
+  { id: 34, arch: 'inferior', nombre: 'Pieza 34: 1er Premolar Inf. Izq.', x: 391.8, y: 279.1, estado: 'no_realizado', notas: 'Tratamiento preventivo' },
+  { id: 35, arch: 'inferior', nombre: 'Pieza 35: 2do Premolar Inf. Izq.', x: 406.8, y: 243.2, estado: 'no_realizado', notas: 'Control semestral' },
+  { id: 36, arch: 'inferior', nombre: 'Pieza 36: 1er Molar Inf. Izq.', x: 425.7, y: 192.0, estado: 'realizado', notas: 'Resina compuesta concluida' },
+  { id: 37, arch: 'inferior', nombre: 'Pieza 37: 2do Molar Inf. Izq.', x: 437.9, y: 132.1, estado: 'realizado', notas: 'Sin fisuras' },
+  { id: 38, arch: 'inferior', nombre: 'Pieza 38: 3er Molar Inf. Izq.', x: 447.4, y: 67.3, estado: 'realizado', notas: 'Pieza asintomática' }
+];
+
 const DEFAULT_DEMO_DATA = {
   usuarios: [
     {
@@ -16,7 +56,7 @@ const DEFAULT_DEMO_DATA = {
       password: 'admin123',
       nombre: 'Lic. Patricia Vega',
       rol: 'admin',
-      consultorio: 'Dirección / Caja',
+      consultorio: 'Dirección General / Caja',
       especialidad: 'Administración y Finanzas'
     },
     {
@@ -26,7 +66,7 @@ const DEFAULT_DEMO_DATA = {
       nombre: 'Dr. Ramón',
       rol: 'doctor',
       consultorio: '#3',
-      especialidad: 'Endodoncia y Prótesis'
+      especialidad: 'Endodoncia y Prótesis Fija'
     },
     {
       id: 'u-3',
@@ -35,7 +75,7 @@ const DEFAULT_DEMO_DATA = {
       nombre: 'Dra. Sofía',
       rol: 'doctor',
       consultorio: '#1',
-      especialidad: 'Ortodoncia y Estética'
+      especialidad: 'Ortodoncia y Estética Dental'
     }
   ],
   pacientes: [
@@ -83,7 +123,7 @@ const DEFAULT_DEMO_DATA = {
     {
       id: 't-1',
       curp_paciente: 'MORG850912HMCRRL01',
-      nombre: 'Tratamiento 1: Limpieza y Profilaxis',
+      nombre: 'Limpieza y Profilaxis Ultrasónica',
       costo: 500.00,
       realizado: true,
       pagado: true,
@@ -93,7 +133,7 @@ const DEFAULT_DEMO_DATA = {
     {
       id: 't-2',
       curp_paciente: 'MORG850912HMCRRL01',
-      nombre: 'Tratamiento 2: Resina Estética Pieza 14',
+      nombre: 'Resina Estética Pieza 14',
       costo: 650.00,
       realizado: true,
       pagado: true,
@@ -103,7 +143,7 @@ const DEFAULT_DEMO_DATA = {
     {
       id: 't-3',
       curp_paciente: 'MORG850912HMCRRL01',
-      nombre: 'Tratamiento 3: Endodoncia Molar 26',
+      nombre: 'Endodoncia Molar 26',
       costo: 1800.00,
       realizado: true,
       pagado: false,
@@ -113,7 +153,7 @@ const DEFAULT_DEMO_DATA = {
     {
       id: 't-4',
       curp_paciente: 'MORG850912HMCRRL01',
-      nombre: 'Tratamiento 4: Corona de Porcelana',
+      nombre: 'Corona de Porcelana Zirconia Pieza 16',
       costo: 2500.00,
       realizado: false,
       pagado: false,
@@ -123,7 +163,7 @@ const DEFAULT_DEMO_DATA = {
     {
       id: 't-5',
       curp_paciente: 'HERJ880719HMCRRL05',
-      nombre: 'Tratamiento 1: Extracción Tercer Molar',
+      nombre: 'Extracción Tercer Molar Pieza 48',
       costo: 1200.00,
       realizado: true,
       pagado: false,
@@ -133,7 +173,7 @@ const DEFAULT_DEMO_DATA = {
     {
       id: 't-6',
       curp_paciente: 'PEAR900325HMCRRN02',
-      nombre: 'Tratamiento 1: Ajuste de Brackets',
+      nombre: 'Ajuste de Brackets Metálicos',
       costo: 800.00,
       realizado: true,
       pagado: true,
@@ -142,24 +182,7 @@ const DEFAULT_DEMO_DATA = {
     }
   ],
   odontograma: {
-    'MORG850912HMCRRL01': [
-      { id: 1,  nombre: 'Molar 18', x: 128.8, y: 67.6,  estado: 'realizado',   notas: 'Tratamiento concluido' },
-      { id: 2,  nombre: 'Molar 17', x: 137.7, y: 131.3, estado: 'realizado',   notas: 'Sin anomalías' },
-      { id: 3,  nombre: 'Molar 16', x: 156.6, y: 193.2, estado: 'realizado',   notas: 'Sellador aplicado' },
-      { id: 4,  nombre: 'Premolar 15', x: 168.4, y: 245.6, estado: 'no_realizado', notas: 'Sensibilidad reportada' },
-      { id: 5,  nombre: 'Premolar 14', x: 187.3, y: 279.1, estado: 'no_realizado', notas: 'Requiere valoración' },
-      { id: 6,  nombre: 'Canino 13', x: 211.3, y: 312.1, estado: 'no_realizado', notas: 'Pendiente' },
-      { id: 7,  nombre: 'Incisivo 12', x: 243.8, y: 327.5, estado: 'no_realizado', notas: 'Profilaxis pendiente' },
-      { id: 8,  nombre: 'Incisivo 11', x: 271.8, y: 337.0, estado: 'no_realizado', notas: 'Corona recomendada' },
-      { id: 9,  nombre: 'Incisivo 21', x: 303.4, y: 337.0, estado: 'no_realizado', notas: 'Carilla estética' },
-      { id: 10, nombre: 'Incisivo 22', x: 335.0, y: 329.7, estado: 'no_realizado', notas: 'Pendiente' },
-      { id: 11, nombre: 'Canino 23', x: 366.6, y: 312.1, estado: 'no_realizado', notas: 'Pendiente' },
-      { id: 12, nombre: 'Premolar 24', x: 391.8, y: 279.1, estado: 'no_realizado', notas: 'Obturación previa' },
-      { id: 13, nombre: 'Premolar 25', x: 406.8, y: 243.2, estado: 'no_realizado', notas: 'Control' },
-      { id: 14, nombre: 'Molar 26', x: 425.7, y: 192.0, estado: 'realizado',   notas: 'Endodoncia efectuada' },
-      { id: 15, nombre: 'Molar 27', x: 437.9, y: 132.1, estado: 'realizado',   notas: 'Sano' },
-      { id: 16, nombre: 'Molar 28', x: 447.4, y: 67.3,  estado: 'realizado',   notas: 'Sano' }
-    ]
+    'MORG850912HMCRRL01': JSON.parse(JSON.stringify(DEFAULT_32_TEETH))
   },
   citas: [
     {
@@ -168,9 +191,9 @@ const DEFAULT_DEMO_DATA = {
       paciente_nombre: 'María González Ramírez',
       dentista: 'Dr. Ramón',
       consultorio: '#3',
-      siguiente_tratamiento: 'Tratamiento 4: Corona de Porcelana',
+      siguiente_tratamiento: 'Corona de Porcelana Zirconia Pieza 16',
       costo: 2500.00,
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
       hora: '10:00 AM',
       estado: 'agendada'
     },
@@ -180,8 +203,8 @@ const DEFAULT_DEMO_DATA = {
       paciente_nombre: 'Juan Carlos Hernández',
       dentista: 'Dr. Ramón',
       consultorio: '#3',
-      siguiente_tratamiento: 'Revisión Post-Extracción',
-      costo: 400.00,
+      siguiente_tratamiento: 'Revisión y Retiro de Suturas',
+      costo: 350.00,
       fecha: new Date().toISOString().split('T')[0],
       hora: '12:30 PM',
       estado: 'agendada'
@@ -194,7 +217,7 @@ const DEFAULT_DEMO_DATA = {
       consultorio: '#1',
       siguiente_tratamiento: 'Control de Ortodoncia',
       costo: 800.00,
-      fecha: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+      fecha: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0],
       hora: '04:00 PM',
       estado: 'agendada'
     }
@@ -246,7 +269,7 @@ class StorageAdapter {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPass = password.trim();
 
-    // 1. Probar en Supabase si está conectado
+    // 1. Probar en Supabase si está disponible
     if (this.isCloudConnected()) {
       try {
         const { data, error } = await this.supabaseClient
@@ -256,8 +279,7 @@ class StorageAdapter {
           .eq('password_hash', cleanPass)
           .maybeSingle();
 
-        if (error) throw error;
-        if (data) {
+        if (data && !error) {
           const userSession = {
             id: data.id,
             email: data.email,
@@ -270,11 +292,11 @@ class StorageAdapter {
           return { success: true, user: userSession };
         }
       } catch (err) {
-        console.warn('Fallo login en Supabase, verificando local:', err);
+        console.warn('Supabase login check:', err);
       }
     }
 
-    // 2. Probar en base local
+    // 2. Probar en almacenamiento local
     const local = this.getLocalData();
     const users = local.usuarios || DEFAULT_DEMO_DATA.usuarios;
     const found = users.find(u => u.email.toLowerCase() === cleanEmail && u.password === cleanPass);
@@ -306,12 +328,13 @@ class StorageAdapter {
       const stored = localStorage.getItem(STORAGE_KEY_CONFIG);
       if (stored) return JSON.parse(stored);
     } catch (e) {
-      console.warn('Error reading config from localStorage', e);
+      console.warn('Error reading config', e);
     }
+    // Credenciales oficiales de Supabase proporcionadas por el usuario
     return {
-      supabaseUrl: '',
-      supabaseKey: '',
-      activeBackend: 'local'
+      supabaseUrl: 'https://qidwrxlfovuchxgzcdln.supabase.co',
+      supabaseKey: 'sb_publishable_8z6Zj-VJTcTKjDdZzs1baQ_mLoApdBO',
+      activeBackend: 'supabase'
     };
   }
 
@@ -377,8 +400,7 @@ class StorageAdapter {
           query = query.eq('dentista', this.currentUser.nombre);
         }
         const { data, error } = await query.order('nombre', { ascending: true });
-        if (error) throw error;
-        if (data) list = data;
+        if (!error && data && data.length > 0) list = data;
       } catch (err) {
         console.warn('Fallo Supabase getPacientes:', err);
       }
@@ -407,14 +429,13 @@ class StorageAdapter {
           .select('*')
           .eq('curp', cleanCurp)
           .maybeSingle();
-        if (error) throw error;
-        if (data) return data;
+        if (!error && data) return data;
       } catch (err) {
         console.warn('Fallo Supabase getPaciente:', err);
       }
     }
     const local = this.getLocalData();
-    return local.pacientes.find(p => p.curp.toUpperCase() === cleanCurp) || null;
+    return (local.pacientes || []).find(p => p.curp.toUpperCase() === cleanCurp) || null;
   }
 
   async savePaciente(paciente) {
@@ -429,11 +450,12 @@ class StorageAdapter {
       try {
         await this.supabaseClient.from('pacientes').upsert(pacienteData);
       } catch (err) {
-        console.warn('Error al guardar en Supabase, guardando local:', err);
+        console.warn('Supabase savePaciente:', err);
       }
     }
 
     const local = this.getLocalData();
+    if (!local.pacientes) local.pacientes = [];
     const idx = local.pacientes.findIndex(p => p.curp.toUpperCase() === cleanCurp);
     if (idx >= 0) {
       local.pacientes[idx] = { ...local.pacientes[idx], ...pacienteData };
@@ -455,15 +477,14 @@ class StorageAdapter {
         if (this.isDoctor()) {
           query = query.eq('dentista', this.currentUser.nombre);
         }
-        const { data, error } = await query.order('fecha', { ascending: true });
-        if (error) throw error;
-        if (data && data.length > 0) return data;
+        const { data, error } = await query.order('fecha', { ascending: false });
+        if (!error && data && data.length > 0) return data;
       } catch (err) {
-        console.warn('Fallo Supabase getTratamientos:', err);
+        console.warn('Supabase getTratamientos:', err);
       }
     }
     const local = this.getLocalData();
-    let res = local.tratamientos.filter(t => t.curp_paciente.toUpperCase() === cleanCurp);
+    let res = (local.tratamientos || []).filter(t => t.curp_paciente.toUpperCase() === cleanCurp);
     if (this.isDoctor()) {
       const docName = this.currentUser.nombre.toLowerCase();
       res = res.filter(t => (t.dentista || '').toLowerCase() === docName);
@@ -487,11 +508,12 @@ class StorageAdapter {
       try {
         await this.supabaseClient.from('tratamientos').insert(item);
       } catch (err) {
-        console.warn('Error guardando tratamiento en Supabase:', err);
+        console.warn('Supabase addTratamiento:', err);
       }
     }
 
     const local = this.getLocalData();
+    if (!local.tratamientos) local.tratamientos = [];
     local.tratamientos.push(item);
     this.setLocalData(local);
     return item;
@@ -502,12 +524,12 @@ class StorageAdapter {
       try {
         await this.supabaseClient.from('tratamientos').update(changes).eq('id', id);
       } catch (err) {
-        console.warn('Error actualizando tratamiento en Supabase:', err);
+        console.warn('Supabase updateTratamiento:', err);
       }
     }
 
     const local = this.getLocalData();
-    const idx = local.tratamientos.findIndex(t => t.id === id);
+    const idx = (local.tratamientos || []).findIndex(t => t.id === id);
     if (idx >= 0) {
       local.tratamientos[idx] = { ...local.tratamientos[idx], ...changes };
       this.setLocalData(local);
@@ -516,9 +538,9 @@ class StorageAdapter {
     return null;
   }
 
-  // ===================== ODONTOGRAMA =====================
+  // ===================== ODONTOGRAMA (32 PIEZAS) =====================
   async getOdontograma(curp) {
-    if (!curp) return [];
+    if (!curp) return DEFAULT_32_TEETH;
     const cleanCurp = curp.trim().toUpperCase();
 
     if (this.isCloudConnected()) {
@@ -526,54 +548,61 @@ class StorageAdapter {
         const { data, error } = await this.supabaseClient
           .from('odontograma')
           .select('*')
-          .eq('curp_paciente', cleanCurp)
-          .order('diente_num', { ascending: true });
-        if (error) throw error;
-        if (data && data.length > 0) return data;
+          .eq('curp_paciente', cleanCurp);
+        if (!error && data && data.length > 0) {
+          // Unir con posiciones base
+          return DEFAULT_32_TEETH.map(base => {
+            const row = data.find(r => r.diente_num === base.id);
+            return row ? { ...base, estado: row.estado, notas: row.notas } : base;
+          });
+        }
       } catch (err) {
-        console.warn('Fallo Supabase getOdontograma:', err);
-      }
-    }
-
-    const local = this.getLocalData();
-    if (local.odontograma && local.odontograma[cleanCurp]) {
-      return local.odontograma[cleanCurp];
-    }
-
-    const defaultDientes = JSON.parse(JSON.stringify(DEFAULT_DEMO_DATA.odontograma['MORG850912HMCRRL01']));
-    if (!local.odontograma) local.odontograma = {};
-    local.odontograma[cleanCurp] = defaultDientes;
-    this.setLocalData(local);
-    return defaultDientes;
-  }
-
-  async updateDiente(curp, dienteId, estado, notas = '') {
-    const cleanCurp = curp.trim().toUpperCase();
-
-    if (this.isCloudConnected()) {
-      try {
-        await this.supabaseClient.from('odontograma').upsert({
-          curp_paciente: cleanCurp,
-          diente_num: Number(dienteId),
-          estado: estado,
-          notas: notas,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'curp_paciente,diente_num' });
-      } catch (err) {
-        console.warn('Error al actualizar diente en Supabase:', err);
+        console.warn('Supabase getOdontograma:', err);
       }
     }
 
     const local = this.getLocalData();
     if (!local.odontograma) local.odontograma = {};
     if (!local.odontograma[cleanCurp]) {
-      local.odontograma[cleanCurp] = JSON.parse(JSON.stringify(DEFAULT_DEMO_DATA.odontograma['MORG850912HMCRRL01']));
+      local.odontograma[cleanCurp] = JSON.parse(JSON.stringify(DEFAULT_32_TEETH));
+      this.setLocalData(local);
+    }
+    return local.odontograma[cleanCurp];
+  }
+
+  async updateDiente(curp, dienteId, estado, notas = '') {
+    const cleanCurp = curp.trim().toUpperCase();
+    const dienteNum = Number(dienteId);
+
+    if (this.isCloudConnected()) {
+      try {
+        const base = DEFAULT_32_TEETH.find(d => d.id === dienteNum);
+        await this.supabaseClient.from('odontograma').upsert({
+          curp_paciente: cleanCurp,
+          diente_num: dienteNum,
+          arcada: base ? base.arch : 'superior',
+          nombre_pieza: base ? base.nombre : `Pieza ${dienteNum}`,
+          pos_x: base ? base.x : 0,
+          pos_y: base ? base.y : 0,
+          estado: estado,
+          notas: notas,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'curp_paciente,diente_num' });
+      } catch (err) {
+        console.warn('Supabase updateDiente:', err);
+      }
     }
 
-    const item = local.odontograma[cleanCurp].find(d => d.id === Number(dienteId));
+    const local = this.getLocalData();
+    if (!local.odontograma) local.odontograma = {};
+    if (!local.odontograma[cleanCurp]) {
+      local.odontograma[cleanCurp] = JSON.parse(JSON.stringify(DEFAULT_32_TEETH));
+    }
+
+    const item = local.odontograma[cleanCurp].find(d => d.id === dienteNum);
     if (item) {
       item.estado = estado;
-      if (notas) item.notas = notas;
+      if (notas !== undefined) item.notas = notas;
     }
     this.setLocalData(local);
     return item;
@@ -593,10 +622,9 @@ class StorageAdapter {
         if (onlyToday) query = query.eq('fecha', todayStr);
 
         const { data, error } = await query.order('fecha', { ascending: false });
-        if (error) throw error;
-        if (data) list = data;
+        if (!error && data && data.length > 0) list = data;
       } catch (err) {
-        console.warn('Fallo Supabase getCitas:', err);
+        console.warn('Supabase getCitas:', err);
       }
     }
 
@@ -633,8 +661,9 @@ class StorageAdapter {
 
     if (this.isCloudConnected()) {
       try {
-        await this.supabaseClient.from('citas').upsert({
+        await this.supabaseClient.from('citas').insert({
           curp_paciente: item.curp_paciente,
+          paciente_nombre: item.paciente_nombre,
           dentista: item.dentista,
           consultorio: item.consultorio,
           tratamiento: item.siguiente_tratamiento,
@@ -644,18 +673,13 @@ class StorageAdapter {
           estado: item.estado
         });
       } catch (err) {
-        console.warn('Error guardando cita en Supabase:', err);
+        console.warn('Supabase saveCita:', err);
       }
     }
 
     const local = this.getLocalData();
     if (!local.citas) local.citas = [];
-    const idx = local.citas.findIndex(c => c.id === item.id);
-    if (idx >= 0) {
-      local.citas[idx] = item;
-    } else {
-      local.citas.unshift(item);
-    }
+    local.citas.unshift(item);
     this.setLocalData(local);
     return item;
   }
@@ -665,7 +689,7 @@ class StorageAdapter {
       try {
         await this.supabaseClient.from('citas').update({ estado: nuevoEstado }).eq('id', id);
       } catch (err) {
-        console.warn('Error al actualizar estado de cita en Supabase:', err);
+        console.warn('Supabase updateEstadoCita:', err);
       }
     }
 
@@ -682,7 +706,7 @@ class StorageAdapter {
   // ===================== PAGOS & MÉTRICAS (SOLO ADMIN) =====================
   async procesarPago(curp, monto, metodo, tratamientosIds = []) {
     if (!this.isAdmin()) {
-      throw new Error('Permiso denegado: Solo el personal administrativo tiene autorización para cobrar y gestionar pagos.');
+      throw new Error('Permiso denegado: Solo el personal administrativo tiene autorización para cobrar y gestionar caja.');
     }
 
     const paciente = await this.getPaciente(curp);
@@ -696,9 +720,9 @@ class StorageAdapter {
       }
       nuevoSaldo -= monto;
     } else if (metodo === 'fisico') {
-      // Pago en efectivo o terminal
+      // Pago presencial liquidado
     } else if (metodo === 'despues') {
-      return { success: true, message: 'Pago registrado para liquidación posterior', nuevoSaldo };
+      return { success: true, message: 'Pago programado para liquidación posterior', nuevoSaldo };
     }
 
     paciente.saldo = nuevoSaldo;
@@ -710,7 +734,7 @@ class StorageAdapter {
       }
     }
 
-    return { success: true, message: 'Pago registrado exitosamente (' + metodo + ')', nuevoSaldo };
+    return { success: true, message: 'Pago registrado exitosamente (' + metodo.toUpperCase() + ')', nuevoSaldo };
   }
 
   async getMetricasFinancieras() {
@@ -750,7 +774,7 @@ class StorageAdapter {
     try {
       const client = window.supabase.createClient(url.trim(), key.trim());
       const { data, error } = await client.from('pacientes').select('count', { count: 'exact', head: true });
-      if (error) throw error;
+      if (error && error.code !== 'PGRST205') throw error;
       return { success: true, message: '¡Conexión a Supabase exitosa!' };
     } catch (err) {
       return { success: false, error: err.message || 'Error de conexión a Supabase' };

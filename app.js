@@ -1,175 +1,925 @@
 /**
- * app.js - Lógica Interactiva Profesional DentalCare Pro
- * Soporte Multi-Arcada (Superior e Inferior 32 piezas FDI), RBAC y Supabase Cloud
+ * app.js - Lógica Integral DentalCare Pro
+ * Vistas Totalmente Diferenciadas: Panel de Control Administrativo vs Estación Clínica del Doctor
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
   const state = {
-    currentModule: 'control', // 'control' | 'progreso' | 'agendar' | 'pagar'
+    currentUser: null,
     currentCurp: null,
     currentPatient: null,
-    treatments: [],
-    odontogram: [],
-    appointments: [],
-    selectedDiente: null,
-    agendaDoctorFilter: ''
+    activeAdminDoctorFilter: 'all', // 'all' | 'Dr. Ramón' | 'Dra. Sofía'
+    selectedDiente: null
   };
 
-  // 1. Inicializar eventos y comprobar sesión
+  // Inicializar autenticación y comprobar sesión
   setupAuthEvents();
   setupDbModalEvents();
   checkUserSession();
 
   // ==============================================================
-  // CONTROL DE SESIÓN Y RBAC (ADMINISTRADOR VS DOCTOR)
+  // 1. SESIÓN Y CONTROL DE ACCESO (ADMIN VS DOCTOR)
   // ==============================================================
 
   function checkUserSession() {
-    const user = window.StorageAdapter.getCurrentUser();
+    state.currentUser = window.StorageAdapter.getCurrentUser();
     const loginSec = document.getElementById('loginSection');
-    const appSec = document.getElementById('mainAppSection');
+    const mainAppSec = document.getElementById('mainAppSection');
+    const adminView = document.getElementById('adminViewContainer');
+    const doctorView = document.getElementById('doctorViewContainer');
 
-    if (!user) {
+    if (!state.currentUser) {
       if (loginSec) loginSec.style.display = 'flex';
-      if (appSec) appSec.style.display = 'none';
-    } else {
-      if (loginSec) loginSec.style.display = 'none';
-      if (appSec) appSec.style.display = 'block';
-      applyRbacPermissions(user);
-      initAppForUser();
+      if (mainAppSec) mainAppSec.style.display = 'none';
+      return;
     }
-  }
 
-  function applyRbacPermissions(user) {
-    // Insignias en Encabezado
+    if (loginSec) loginSec.style.display = 'none';
+    if (mainAppSec) mainAppSec.style.display = 'block';
+
+    // Renderizar Badge de Usuario en Header
     const avatarEl = document.getElementById('headerUserAvatar');
     const nameEl = document.getElementById('headerUserName');
     const roleTagEl = document.getElementById('headerRoleTag');
+    const brandIcon = document.getElementById('headerBrandIcon');
+    const mainTitle = document.getElementById('headerMainTitle');
+    const subTitle = document.getElementById('headerSubTitle');
 
-    if (avatarEl) avatarEl.textContent = user.nombre.charAt(0).toUpperCase();
-    if (nameEl) nameEl.textContent = user.nombre;
+    if (avatarEl) {
+      avatarEl.textContent = state.currentUser.nombre.charAt(0).toUpperCase();
+      avatarEl.className = `user-avatar-circle ${state.currentUser.rol === 'admin' ? 'admin-avatar' : ''}`;
+    }
+    if (nameEl) nameEl.textContent = state.currentUser.nombre;
     if (roleTagEl) {
-      roleTagEl.textContent = user.rol.toUpperCase();
-      roleTagEl.className = `role-badge ${user.rol}`;
+      roleTagEl.textContent = state.currentUser.rol.toUpperCase();
+      roleTagEl.className = `role ${state.currentUser.rol}`;
     }
 
-    // Permisos por Rol
-    const navBtnPagar = document.getElementById('navBtnPagar');
-    const doctorBanner = document.getElementById('doctorNoticeBanner');
-    const bannerConsultorio = document.getElementById('bannerDocConsultorio');
-    const adminAgendaBox = document.getElementById('adminAgendaFilterBox');
+    if (state.currentUser.rol === 'admin') {
+      // MODO ADMINISTRADOR: PANEL DE CONTROL EJECUTIVO
+      if (adminView) adminView.style.display = 'flex';
+      if (doctorView) doctorView.style.display = 'none';
+      if (brandIcon) brandIcon.className = 'brand-icon admin-theme';
+      if (mainTitle) mainTitle.textContent = 'Panel de Control';
+      if (subTitle) subTitle.textContent = 'DIRECCIÓN GENERAL & ADMINISTRACIÓN';
 
-    if (window.StorageAdapter.isDoctor()) {
-      if (navBtnPagar) navBtnPagar.classList.add('restricted');
-      if (doctorBanner) doctorBanner.style.display = 'flex';
-      if (bannerConsultorio) bannerConsultorio.textContent = user.consultorio || '#3';
-      if (adminAgendaBox) adminAgendaBox.style.display = 'none';
-
-      if (state.currentModule === 'pagar') {
-        switchModule('control');
-      }
+      initAdminDashboard();
     } else {
-      if (navBtnPagar) navBtnPagar.classList.remove('restricted');
-      if (doctorBanner) doctorBanner.style.display = 'none';
-      if (adminAgendaBox) adminAgendaBox.style.display = 'block';
-      populateAgendaDoctorFilter();
-    }
+      // MODO DOCTOR: ESTACIÓN CLÍNICA DENTAL
+      if (adminView) adminView.style.display = 'none';
+      if (doctorView) doctorView.style.display = 'flex';
+      if (brandIcon) brandIcon.className = 'brand-icon';
+      if (mainTitle) mainTitle.textContent = 'DentalCare Pro';
+      if (subTitle) subTitle.textContent = `CONSULTORIO ${state.currentUser.consultorio || '#3'} - ${state.currentUser.especialidad || 'ODONTOLOGÍA'}`;
 
-    populateDoctorSelectors(user);
-  }
-
-  function populateDoctorSelectors(user) {
-    const doctores = window.StorageAdapter.getDoctores();
-    const inpSelect = document.getElementById('inpDentistaSelect');
-    const citaSelect = document.getElementById('citaDentistaSelect');
-    const isDoc = window.StorageAdapter.isDoctor();
-
-    [inpSelect, citaSelect].forEach(select => {
-      if (!select) return;
-      select.innerHTML = '';
-
-      if (isDoc) {
-        const opt = document.createElement('option');
-        opt.value = user.nombre;
-        opt.textContent = `${user.nombre} (${user.especialidad || 'Consultorio ' + user.consultorio})`;
-        select.appendChild(opt);
-        select.disabled = true;
-      } else {
-        select.disabled = false;
-        doctores.forEach(doc => {
-          const opt = document.createElement('option');
-          opt.value = doc.nombre;
-          opt.textContent = `${doc.nombre} - ${doc.especialidad || 'Consultorio ' + doc.consultorio}`;
-          select.appendChild(opt);
-        });
-      }
-    });
-
-    const inpConsultorio = document.getElementById('inpConsultorio');
-    const citaConsultorio = document.getElementById('citaConsultorioInp');
-
-    if (isDoc) {
-      if (inpConsultorio) { inpConsultorio.value = user.consultorio || '#3'; inpConsultorio.readOnly = true; }
-      if (citaConsultorio) { citaConsultorio.value = user.consultorio || '#3'; citaConsultorio.readOnly = true; }
-    } else {
-      if (inpConsultorio) inpConsultorio.readOnly = false;
-      if (citaConsultorio) citaConsultorio.readOnly = false;
-
-      if (inpSelect) {
-        inpSelect.onchange = (e) => {
-          const d = doctores.find(doc => doc.nombre === e.target.value);
-          if (d && inpConsultorio) inpConsultorio.value = d.consultorio || '#3';
-        };
-      }
-      if (citaSelect) {
-        citaSelect.onchange = (e) => {
-          const d = doctores.find(doc => doc.nombre === e.target.value);
-          if (d && citaConsultorio) citaConsultorio.value = d.consultorio || '#3';
-        };
-      }
-    }
-  }
-
-  function populateAgendaDoctorFilter() {
-    const filterSelect = document.getElementById('filterAgendaDoctorSelect');
-    if (!filterSelect) return;
-
-    const doctores = window.StorageAdapter.getDoctores();
-    filterSelect.innerHTML = '<option value="">Todos los doctores (Clínica completa)</option>';
-    doctores.forEach(doc => {
-      const opt = document.createElement('option');
-      opt.value = doc.nombre;
-      opt.textContent = `${doc.nombre} (${doc.consultorio})`;
-      filterSelect.appendChild(opt);
-    });
-
-    filterSelect.onchange = async (e) => {
-      state.agendaDoctorFilter = e.target.value;
-      await renderAppointmentDetails();
-    };
-  }
-
-  async function initAppForUser() {
-    updateDbStatusBadge();
-    const pacientes = await window.StorageAdapter.getPacientes();
-
-    if (pacientes.length > 0) {
-      state.currentCurp = pacientes[0].curp;
-    } else {
-      state.currentCurp = 'MORG850912HMCRRL01';
-    }
-
-    await loadPatientData(state.currentCurp);
-    setupNavigationEvents();
-    setupFormEvents();
-
-    if (window.StorageAdapter.isAdmin()) {
-      await renderAdminMetrics();
+      initDoctorWorkplace();
     }
   }
 
   // ==============================================================
-  // AUTENTICACIÓN & EVENTOS LOGIN
+  // 2. PANEL DE CONTROL ADMINISTRATIVO (ADMIN VIEW)
+  // ==============================================================
+
+  async function initAdminDashboard() {
+    setupAdminNavigation();
+    setupAdminForms();
+    await reloadAdminData();
+  }
+
+  async function reloadAdminData() {
+    const metrics = await window.StorageAdapter.getMetricasFinancieras();
+    const allPatients = await window.StorageAdapter.getPacientes(false); // todos
+    const allCitas = await window.StorageAdapter.getCitas(null, null);
+
+    // 1. Renderizar KPIs Principales
+    if (metrics) {
+      setText('adminTotalCobrado', `$${metrics.totalCobrado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`);
+      setText('adminTotalPendiente', `$${metrics.totalPendiente.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`);
+      setText('adminTotalPacientes', String(metrics.totalPacientes));
+      setText('adminCitasHoy', String(metrics.citasHoy));
+    }
+
+    // 2. Renderizar Tarjetas de Doctores (Directorio)
+    renderAdminDoctorCards(metrics ? metrics.porDoctor : {});
+
+    // 3. Renderizar Tabla de Adeudos Prioritarios
+    renderAdminDebtorsTable(allPatients);
+
+    // 4. Renderizar Tabla de Pacientes por Doctor
+    renderAdminPatientsTable(allPatients);
+
+    // 5. Renderizar Agenda Global
+    renderAdminAgendaTable(allCitas);
+
+    // 6. Poblar selects para caja y citas
+    populateAdminSelects(allPatients);
+  }
+
+  function renderAdminDoctorCards(porDoctor) {
+    const container = document.getElementById('adminDoctorsGrid');
+    if (!container) return;
+    const doctores = window.StorageAdapter.getDoctores();
+
+    container.innerHTML = '';
+    doctores.forEach(doc => {
+      const stats = porDoctor[doc.nombre] || { totalPacientes: 0, totalCobrado: 0, totalPendiente: 0, citasHoy: 0 };
+      const card = document.createElement('div');
+      card.className = 'doctor-team-card';
+      card.innerHTML = `
+        <div class="doctor-badge-avatar">🩺</div>
+        <div class="doc-meta">
+          <h3>${doc.nombre}</h3>
+          <div class="spec">${doc.especialidad} &middot; Consultorio <strong>${doc.consultorio}</strong></div>
+          <div class="doc-stats-mini">
+            <div class="stat">
+              <span>Pacientes:</span>
+              <strong>${stats.totalPacientes}</strong>
+            </div>
+            <div class="stat">
+              <span>Citas Hoy:</span>
+              <strong>${stats.citasHoy}</strong>
+            </div>
+            <div class="stat">
+              <span>Pendiente:</span>
+              <strong style="color:#DC2626">$${stats.totalPendiente.toFixed(0)}</strong>
+            </div>
+          </div>
+          <button type="button" class="btn-action secondary sm btn-filter-doc-patients" data-doctor="${doc.nombre}">
+            Ver Pacientes Asignados &nbsp;→
+          </button>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+
+    container.querySelectorAll('.btn-filter-doc-patients').forEach(btn => {
+      btn.onclick = () => {
+        const docName = btn.dataset.doctor;
+        switchAdminTab('pacientes');
+        filterAdminPatientsByDoctor(docName);
+      };
+    });
+  }
+
+  async function renderAdminDebtorsTable(patients) {
+    const tbody = document.getElementById('tableDebtorsBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const local = window.StorageAdapter.getLocalData();
+    const treatments = local.tratamientos || [];
+
+    let count = 0;
+    for (const p of patients) {
+      const unpaid = treatments.filter(t => t.curp_paciente.toUpperCase() === p.curp.toUpperCase() && !t.pagado);
+      if (unpaid.length > 0) {
+        count++;
+        const totalDebt = unpaid.reduce((acc, t) => acc + Number(t.costo || 0), 0);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${p.nombre}</strong></td>
+          <td><span class="pill" style="background:#F1F5F9;color:#334155;font-family:monospace;">${p.curp}</span></td>
+          <td>${p.dentista}</td>
+          <td>${p.consultorio}</td>
+          <td><strong style="color:#DC2626;">$${totalDebt.toFixed(2)}</strong></td>
+          <td>$${Number(p.saldo || 0).toFixed(2)}</td>
+          <td>
+            <button type="button" class="btn-action indigo sm btn-cobrar-debtor" data-curp="${p.curp}">
+              Cobrar en Caja
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    if (count === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:#64748B;">¡Excelente! No hay pacientes con adeudos pendientes.</td></tr>';
+    }
+
+    tbody.querySelectorAll('.btn-cobrar-debtor').forEach(b => {
+      b.onclick = () => {
+        const curp = b.dataset.curp;
+        switchAdminTab('caja');
+        const select = document.getElementById('adminCajaPacienteSelect');
+        if (select) {
+          select.value = curp;
+          select.dispatchEvent(new Event('change'));
+        }
+      };
+    });
+  }
+
+  function renderAdminPatientsTable(patients) {
+    const tbody = document.getElementById('tableAdminPatientsBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    let list = patients;
+    if (state.activeAdminDoctorFilter !== 'all') {
+      list = list.filter(p => (p.dentista || '').toLowerCase() === state.activeAdminDoctorFilter.toLowerCase());
+    }
+
+    const searchVal = (document.getElementById('searchAdminPatients')?.value || '').trim().toLowerCase();
+    if (searchVal) {
+      list = list.filter(p => 
+        p.nombre.toLowerCase().includes(searchVal) || 
+        p.curp.toLowerCase().includes(searchVal) ||
+        (p.telefono || '').includes(searchVal)
+      );
+    }
+
+    if (list.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:#64748B;">No se encontraron pacientes para este filtro.</td></tr>';
+      return;
+    }
+
+    list.forEach(p => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${p.nombre}</strong></td>
+        <td><span class="pill" style="background:#F1F5F9;font-family:monospace;">${p.curp}</span></td>
+        <td>${p.edad ? p.edad + ' años' : '-'} &middot; ${p.telefono || '-'}</td>
+        <td>${p.dentista}</td>
+        <td>${p.consultorio}</td>
+        <td><strong style="color:#059669;">$${Number(p.saldo || 0).toFixed(2)}</strong></td>
+        <td>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="btn-action secondary sm btn-inspect-patient" data-curp="${p.curp}" title="Ver Odontograma y Expediente">
+              🦷 Odontograma
+            </button>
+            <button type="button" class="btn-action indigo sm btn-caja-patient" data-curp="${p.curp}" title="Cobrar / Saldo">
+              💳 Caja
+            </button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    tbody.querySelectorAll('.btn-inspect-patient').forEach(b => {
+      b.onclick = () => {
+        const curp = b.dataset.curp;
+        switchAdminTab('expediente');
+        const sel = document.getElementById('adminInspectPatientSelect');
+        if (sel) {
+          sel.value = curp;
+          sel.dispatchEvent(new Event('change'));
+        }
+      };
+    });
+
+    tbody.querySelectorAll('.btn-caja-patient').forEach(b => {
+      b.onclick = () => {
+        const curp = b.dataset.curp;
+        switchAdminTab('caja');
+        const sel = document.getElementById('adminCajaPacienteSelect');
+        if (sel) {
+          sel.value = curp;
+          sel.dispatchEvent(new Event('change'));
+        }
+      };
+    });
+  }
+
+  function renderAdminAgendaTable(citas) {
+    const tbody = document.getElementById('tableAdminAgendaBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const filterDoc = document.getElementById('filterAdminAgendaDoc')?.value || '';
+    let filtered = citas;
+    if (filterDoc) {
+      filtered = filtered.filter(c => (c.dentista || '').toLowerCase() === filterDoc.toLowerCase());
+    }
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#64748B;">Sin citas programadas para este filtro.</td></tr>';
+      return;
+    }
+
+    filtered.forEach(c => {
+      const tr = document.createElement('tr');
+      const pillClass = c.estado === 'completada' ? 'ok' : (c.estado === 'cancelada' ? 'bad' : 'warn');
+      tr.innerHTML = `
+        <td><strong>${c.fecha}</strong> a las ${c.hora}</td>
+        <td>${c.paciente_nombre || c.curp_paciente}</td>
+        <td>${c.dentista} (${c.consultorio})</td>
+        <td>${c.siguiente_tratamiento}</td>
+        <td><strong>$${Number(c.costo).toFixed(2)}</strong></td>
+        <td><span class="pill ${pillClass}"><i></i>${c.estado.toUpperCase()}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function populateAdminSelects(patients) {
+    const doctores = window.StorageAdapter.getDoctores();
+
+    // Selects en Agendar Cita Admin
+    const citaPacSel = document.getElementById('adminCitaPacienteSelect');
+    const citaDocSel = document.getElementById('adminCitaDoctorSelect');
+    const cajaPacSel = document.getElementById('adminCajaPacienteSelect');
+    const inspectPacSel = document.getElementById('adminInspectPatientSelect');
+    const nuevoPacDocSel = document.getElementById('adminNuevoDoctorSelect');
+
+    [citaPacSel, cajaPacSel, inspectPacSel].forEach(sel => {
+      if (!sel) return;
+      sel.innerHTML = '';
+      patients.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.curp;
+        opt.textContent = `${p.nombre} (${p.dentista} - ${p.curp})`;
+        sel.appendChild(opt);
+      });
+    });
+
+    [citaDocSel, nuevoPacDocSel].forEach(sel => {
+      if (!sel) return;
+      sel.innerHTML = '';
+      doctores.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.nombre;
+        opt.textContent = `${d.nombre} (${d.especialidad} - Cons. ${d.consultorio})`;
+        sel.appendChild(opt);
+      });
+    });
+
+    // Eventos de selección en Caja
+    if (cajaPacSel) {
+      cajaPacSel.onchange = () => updateAdminCajaView(cajaPacSel.value);
+      if (patients.length > 0) updateAdminCajaView(patients[0].curp);
+    }
+
+    // Eventos de selección en Inspección Odontograma
+    if (inspectPacSel) {
+      inspectPacSel.onchange = () => updateAdminInspectView(inspectPacSel.value);
+      if (patients.length > 0) updateAdminInspectView(patients[0].curp);
+    }
+
+    // Sincronizar consultorio automático en formulario cita admin
+    if (citaDocSel) {
+      citaDocSel.onchange = (e) => {
+        const found = doctores.find(d => d.nombre === e.target.value);
+        const consInp = document.getElementById('adminCitaConsultorio');
+        if (found && consInp) consInp.value = found.consultorio || '#3';
+      };
+    }
+
+    if (nuevoPacDocSel) {
+      nuevoPacDocSel.onchange = (e) => {
+        const found = doctores.find(d => d.nombre === e.target.value);
+        const consInp = document.getElementById('adminNuevoConsultorio');
+        if (found && consInp) consInp.value = found.consultorio || '#3';
+      };
+    }
+  }
+
+  async function updateAdminCajaView(curp) {
+    if (!curp) return;
+    const p = await window.StorageAdapter.getPaciente(curp);
+    if (!p) return;
+
+    setText('adminCajaDoc', p.dentista || 'Dr. Ramón');
+    setText('adminCajaCons', p.consultorio || '#3');
+    setText('adminCajaCurpVal', p.curp);
+    setText('adminCajaSaldoVal', `$${Number(p.saldo || 0).toFixed(2)} MXN`);
+
+    const treatments = await window.StorageAdapter.getTratamientos(p.curp);
+    const unpaid = treatments.filter(t => !t.pagado);
+    const pillsContainer = document.getElementById('adminCajaTratamientosPills');
+
+    if (pillsContainer) {
+      pillsContainer.innerHTML = '';
+      if (unpaid.length === 0) {
+        pillsContainer.innerHTML = '<span class="pill ok"><i></i>Al corriente (Sin adeudos pendientes)</span>';
+      } else {
+        unpaid.forEach(t => {
+          const pill = document.createElement('span');
+          pill.className = 'pill bad';
+          pill.innerHTML = `<i></i>${t.nombre} ($${t.costo})`;
+          pillsContainer.appendChild(pill);
+        });
+      }
+    }
+
+    const totalDebt = unpaid.reduce((a, b) => a + Number(b.costo || 0), 0);
+    setText('adminCajaTotal', `$${totalDebt.toFixed(2)} MXN`);
+
+    const btnSaldo = document.getElementById('btnAdminCobrarSaldo');
+    if (btnSaldo) {
+      btnSaldo.disabled = (Number(p.saldo || 0) < totalDebt || totalDebt === 0);
+    }
+  }
+
+  async function updateAdminInspectView(curp) {
+    if (!curp) return;
+    const p = await window.StorageAdapter.getPaciente(curp);
+    if (!p) return;
+
+    setText('adminInspectDoctorBadge', `Doctor Asignado: ${p.dentista} (${p.consultorio})`);
+    const odontogram = await window.StorageAdapter.getOdontograma(curp);
+
+    renderArchesToOverlay(
+      odontogram,
+      document.getElementById('adminMarkersSuperior'),
+      document.getElementById('adminMarkersInferior'),
+      curp
+    );
+  }
+
+  function setupAdminNavigation() {
+    document.querySelectorAll('.admin-nav-tab').forEach(tab => {
+      tab.onclick = () => {
+        const target = tab.dataset.tab;
+        switchAdminTab(target);
+      };
+    });
+
+    // Filtros de doctores en pestaña pacientes
+    document.querySelectorAll('.doc-filter-btn').forEach(btn => {
+      btn.onclick = () => {
+        const filter = btn.dataset.filter;
+        filterAdminPatientsByDoctor(filter);
+      };
+    });
+
+    // Buscador en tiempo real de pacientes
+    const searchInp = document.getElementById('searchAdminPatients');
+    if (searchInp) {
+      searchInp.oninput = async () => {
+        const allPatients = await window.StorageAdapter.getPacientes(false);
+        renderAdminPatientsTable(allPatients);
+      };
+    }
+
+    // Filtro de doctor en agenda global
+    const agendaDocFilter = document.getElementById('filterAdminAgendaDoc');
+    if (agendaDocFilter) {
+      agendaDocFilter.onchange = async () => {
+        const allCitas = await window.StorageAdapter.getCitas(null, null);
+        renderAdminAgendaTable(allCitas);
+      };
+    }
+
+    // Modal nuevo paciente desde Admin
+    const btnModalNuevo = document.getElementById('btnAdminNuevoPacienteModal');
+    const modalNuevo = document.getElementById('modalAdminNuevoPaciente');
+    const btnCloseModal = document.getElementById('btnCloseAdminPacienteModal');
+    const btnCancelModal = document.getElementById('btnCancelAdminPacienteModal');
+
+    if (btnModalNuevo && modalNuevo) {
+      btnModalNuevo.onclick = () => modalNuevo.classList.add('open');
+    }
+    [btnCloseModal, btnCancelModal].forEach(b => {
+      if (b) b.onclick = () => modalNuevo.classList.remove('open');
+    });
+  }
+
+  function switchAdminTab(tabName) {
+    document.querySelectorAll('.admin-nav-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.tab === tabName);
+    });
+
+    document.querySelectorAll('.admin-pane').forEach(p => {
+      p.classList.toggle('active', p.id === `pane-${tabName}`);
+    });
+  }
+
+  function filterAdminPatientsByDoctor(docFilter) {
+    state.activeAdminDoctorFilter = docFilter;
+    document.querySelectorAll('.doc-filter-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.filter === docFilter);
+    });
+    const title = document.getElementById('adminPatientsTableTitle');
+    if (title) {
+      title.textContent = docFilter === 'all' 
+        ? 'Lista de Pacientes de la Clínica' 
+        : `Pacientes Asignados a ${docFilter}`;
+    }
+    window.StorageAdapter.getPacientes(false).then(renderAdminPatientsTable);
+  }
+
+  function setupAdminForms() {
+    // Formulario Registrar Paciente Admin
+    const formAdminPaciente = document.getElementById('formAdminNuevoPaciente');
+    if (formAdminPaciente) {
+      formAdminPaciente.onsubmit = async (e) => {
+        e.preventDefault();
+        const curpVal = document.getElementById('adminNuevoCurp').value.trim().toUpperCase();
+        const nombreVal = document.getElementById('adminNuevoNombre').value.trim();
+        const docVal = document.getElementById('adminNuevoDoctorSelect').value;
+        const consVal = document.getElementById('adminNuevoConsultorio').value.trim();
+
+        if (!curpVal || curpVal.length < 10) {
+          showToast('Introduce una CURP válida', 'warn');
+          return;
+        }
+
+        const nuevo = {
+          curp: curpVal,
+          nombre: nombreVal,
+          edad: Number(document.getElementById('adminNuevoEdad').value) || 0,
+          telefono: document.getElementById('adminNuevoTel').value.trim(),
+          correo: '',
+          direccion: '',
+          nss: '',
+          dentista: docVal,
+          consultorio: consVal,
+          saldo: 0.00
+        };
+
+        await window.StorageAdapter.savePaciente(nuevo);
+        showToast('¡Paciente registrado con éxito!', 'ok');
+        formAdminPaciente.reset();
+        document.getElementById('modalAdminNuevoPaciente').classList.remove('open');
+        await reloadAdminData();
+      };
+    }
+
+    // Formulario Agendar Cita Admin
+    const formAdminCita = document.getElementById('formAdminNuevaCita');
+    if (formAdminCita) {
+      formAdminCita.onsubmit = async (e) => {
+        e.preventDefault();
+        const curpVal = document.getElementById('adminCitaPacienteSelect').value;
+        const docVal = document.getElementById('adminCitaDoctorSelect').value;
+        const consVal = document.getElementById('adminCitaConsultorio').value.trim();
+        const tratVal = document.getElementById('adminCitaTratamiento').value.trim();
+        const fechaVal = document.getElementById('adminCitaFecha').value;
+        const horaVal = document.getElementById('adminCitaHora').value;
+        const costoVal = Number(document.getElementById('adminCitaCosto').value) || 0;
+
+        const paciente = await window.StorageAdapter.getPaciente(curpVal);
+
+        const nuevaCita = {
+          curp_paciente: curpVal,
+          paciente_nombre: paciente ? paciente.nombre : '',
+          dentista: docVal,
+          consultorio: consVal,
+          siguiente_tratamiento: tratVal,
+          costo: costoVal,
+          fecha: fechaVal,
+          hora: horaVal,
+          estado: 'agendada'
+        };
+
+        await window.StorageAdapter.saveCita(nuevaCita);
+        await window.StorageAdapter.addTratamiento({
+          curp_paciente: curpVal,
+          nombre: tratVal,
+          costo: costoVal,
+          realizado: false,
+          pagado: false,
+          fecha: fechaVal,
+          dentista: docVal
+        });
+
+        showToast('Cita programada con éxito en agenda', 'ok');
+        formAdminCita.reset();
+        await reloadAdminData();
+      };
+    }
+
+    // Cobros en Caja Admin
+    const btnCobrarSaldo = document.getElementById('btnAdminCobrarSaldo');
+    const btnCobrarFisico = document.getElementById('btnAdminCobrarFisico');
+    const btnPagarDespues = document.getElementById('btnAdminPagarDespues');
+
+    async function ejecutarCobroAdmin(metodo) {
+      const curp = document.getElementById('adminCajaPacienteSelect').value;
+      if (!curp) return;
+
+      const treatments = await window.StorageAdapter.getTratamientos(curp);
+      const unpaid = treatments.filter(t => !t.pagado);
+
+      if (unpaid.length === 0 && metodo !== 'despues') {
+        showToast('El paciente no tiene adeudos pendientes', 'ok');
+        return;
+      }
+
+      const monto = unpaid.reduce((a, b) => a + Number(b.costo || 0), 0);
+      const ids = unpaid.map(u => u.id);
+
+      try {
+        const res = await window.StorageAdapter.procesarPago(curp, monto, metodo, ids);
+        showToast(res.message, 'ok');
+        await reloadAdminData();
+        await updateAdminCajaView(curp);
+      } catch (err) {
+        showToast(err.message, 'bad');
+      }
+    }
+
+    if (btnCobrarSaldo) btnCobrarSaldo.onclick = () => ejecutarCobroAdmin('saldo');
+    if (btnCobrarFisico) btnCobrarFisico.onclick = () => ejecutarCobroAdmin('fisico');
+    if (btnPagarDespues) btnPagarDespues.onclick = () => ejecutarCobroAdmin('despues');
+  }
+
+  // ==============================================================
+  // 3. ESTACIÓN CLÍNICA DEL DOCTOR (DOCTOR VIEW)
+  // ==============================================================
+
+  async function initDoctorWorkplace() {
+    setupDoctorNavigation();
+    setupDoctorForms();
+
+    const titleEl = document.getElementById('docClinicalTitle');
+    const subEl = document.getElementById('docClinicalSubtitle');
+    if (titleEl) titleEl.textContent = `🩺 ${state.currentUser.nombre} - Estación de Trabajo Clínica`;
+    if (subEl) subEl.textContent = `Consultorio ${state.currentUser.consultorio || '#3'} &middot; Especialidad: ${state.currentUser.especialidad || 'Odontología'}`;
+
+    await reloadDoctorData();
+  }
+
+  async function reloadDoctorData() {
+    // Obtener ÚNICAMENTE pacientes asignados a este doctor
+    const myPatients = await window.StorageAdapter.getPacientes(true);
+    const quickSel = document.getElementById('docQuickPatientSelect');
+
+    if (quickSel) {
+      quickSel.innerHTML = '';
+      if (myPatients.length === 0) {
+        quickSel.innerHTML = '<option>Sin pacientes asignados</option>';
+      } else {
+        myPatients.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.curp;
+          opt.textContent = `${p.nombre} (${p.curp})`;
+          quickSel.appendChild(opt);
+        });
+
+        if (!state.currentCurp || !myPatients.some(p => p.curp === state.currentCurp)) {
+          state.currentCurp = myPatients[0].curp;
+        }
+        quickSel.value = state.currentCurp;
+      }
+    }
+
+    if (state.currentCurp) {
+      await loadDoctorPatientDetails(state.currentCurp);
+    }
+
+    // Cargar citas de este doctor
+    const myCitas = await window.StorageAdapter.getCitas(null, null);
+    renderDoctorAgendaTable(myCitas);
+  }
+
+  async function loadDoctorPatientDetails(curp) {
+    state.currentCurp = curp;
+    state.currentPatient = await window.StorageAdapter.getPaciente(curp);
+    if (!state.currentPatient) return;
+
+    // Ficha clínica
+    setText('docViewNombre', state.currentPatient.nombre || '-');
+    setText('docViewEdad', state.currentPatient.edad ? state.currentPatient.edad + ' años' : '-');
+    setText('docViewTelefono', state.currentPatient.telefono || '-');
+    setText('docViewCorreo', state.currentPatient.correo || '-');
+    setText('docViewDireccion', state.currentPatient.direccion || '-');
+    setText('docViewCurp', state.currentPatient.curp || '-');
+    setText('docViewNss', state.currentPatient.nss || '-');
+
+    // Odontograma del paciente
+    const odontogram = await window.StorageAdapter.getOdontograma(curp);
+    renderArchesToOverlay(
+      odontogram,
+      document.getElementById('docMarkersSuperior'),
+      document.getElementById('docMarkersInferior'),
+      curp
+    );
+
+    // Historial clínico de este doctor
+    const treatments = await window.StorageAdapter.getTratamientos(curp);
+    const container = document.getElementById('docHistorialContainer');
+    if (container) {
+      container.innerHTML = '';
+      if (treatments.length === 0) {
+        container.innerHTML = '<div style="padding:16px;text-align:center;color:#64748B;">Sin procedimientos clínicos registrados para este paciente.</div>';
+      } else {
+        treatments.forEach(t => {
+          const item = document.createElement('div');
+          item.className = 'info-row';
+          item.style.padding = '12px 16px';
+          item.style.background = '#F8FAFC';
+          item.style.borderRadius = '10px';
+          item.style.marginBottom = '6px';
+          item.innerHTML = `
+            <div>
+              <div style="font-weight:700;color:#0F172A;">${t.nombre}</div>
+              <div style="font-size:11px;color:#64748B;">Fecha: ${t.fecha} &middot; Costo: $${Number(t.costo).toFixed(2)} MXN</div>
+            </div>
+            <div>
+              <span class="pill ${t.realizado ? 'ok' : 'warn'}"><i></i>${t.realizado ? 'Realizado' : 'Pendiente'}</span>
+            </div>
+          `;
+          container.appendChild(item);
+        });
+      }
+    }
+  }
+
+  function renderDoctorAgendaTable(citas) {
+    const tbody = document.getElementById('tableDocAgendaBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (citas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#64748B;">No tienes consultas programadas.</td></tr>';
+      return;
+    }
+
+    citas.forEach(c => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${c.fecha}</strong> &middot; ${c.hora}</td>
+        <td>${c.paciente_nombre || c.curp_paciente}</td>
+        <td>${c.siguiente_tratamiento}</td>
+        <td><span class="pill ${c.estado === 'completada' ? 'ok' : 'warn'}"><i></i>${c.estado.toUpperCase()}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function setupDoctorNavigation() {
+    document.querySelectorAll('.doctor-nav-tab').forEach(tab => {
+      tab.onclick = () => {
+        const target = tab.dataset.tab;
+        document.querySelectorAll('.doctor-nav-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.doctor-pane').forEach(p => p.classList.remove('active'));
+
+        tab.classList.add('active');
+        const targetPane = document.getElementById(`pane-${target}`);
+        if (targetPane) targetPane.classList.add('active');
+      };
+    });
+
+    const quickSel = document.getElementById('docQuickPatientSelect');
+    if (quickSel) {
+      quickSel.onchange = () => {
+        loadDoctorPatientDetails(quickSel.value);
+        showToast('Paciente en consulta actualizado', 'ok');
+      };
+    }
+  }
+
+  function setupDoctorForms() {
+    // Formulario Registrar Paciente Doctor
+    const formDocPaciente = document.getElementById('formDocNuevoPaciente');
+    if (formDocPaciente) {
+      formDocPaciente.onsubmit = async (e) => {
+        e.preventDefault();
+        const curpVal = document.getElementById('docInpCurp').value.trim().toUpperCase();
+        const nombreVal = document.getElementById('docInpNombre').value.trim();
+
+        if (!curpVal || curpVal.length < 10) {
+          showToast('Introduce una CURP válida', 'warn');
+          return;
+        }
+
+        const nuevo = {
+          curp: curpVal,
+          nombre: nombreVal,
+          edad: Number(document.getElementById('docInpEdad').value) || 0,
+          telefono: document.getElementById('docInpTel').value.trim(),
+          correo: '',
+          direccion: '',
+          nss: '',
+          dentista: state.currentUser.nombre,
+          consultorio: state.currentUser.consultorio || '#3',
+          saldo: 0.00
+        };
+
+        await window.StorageAdapter.savePaciente(nuevo);
+        showToast('Paciente registrado en tu consultorio', 'ok');
+        formDocPaciente.reset();
+        state.currentCurp = curpVal;
+        await reloadDoctorData();
+      };
+    }
+
+    // Formulario Agendar Cita Doctor
+    const formDocCita = document.getElementById('formDocNuevaCita');
+    if (formDocCita) {
+      formDocCita.onsubmit = async (e) => {
+        e.preventDefault();
+        if (!state.currentCurp) {
+          showToast('Selecciona un paciente primero', 'warn');
+          return;
+        }
+
+        const tratVal = document.getElementById('docCitaTratamiento').value.trim();
+        const fechaVal = document.getElementById('docCitaFecha').value;
+        const horaVal = document.getElementById('docCitaHora').value;
+        const costoVal = Number(document.getElementById('docCitaCosto').value) || 0;
+
+        const nuevaCita = {
+          curp_paciente: state.currentCurp,
+          paciente_nombre: state.currentPatient ? state.currentPatient.nombre : '',
+          dentista: state.currentUser.nombre,
+          consultorio: state.currentUser.consultorio || '#3',
+          siguiente_tratamiento: tratVal,
+          costo: costoVal,
+          fecha: fechaVal,
+          hora: horaVal,
+          estado: 'agendada'
+        };
+
+        await window.StorageAdapter.saveCita(nuevaCita);
+        await window.StorageAdapter.addTratamiento({
+          curp_paciente: state.currentCurp,
+          nombre: tratVal,
+          costo: costoVal,
+          realizado: false,
+          pagado: false,
+          fecha: fechaVal,
+          dentista: state.currentUser.nombre
+        });
+
+        showToast('Consulta agendada con éxito', 'ok');
+        formDocCita.reset();
+        await reloadDoctorData();
+      };
+    }
+  }
+
+  // ==============================================================
+  // 4. MOTOR DEL ODONTOGRAMA (32 PIEZAS ANATÓMICAS)
+  // ==============================================================
+
+  function renderArchesToOverlay(odontogram, overlaySup, overlayInf, curp) {
+    if (!overlaySup || !overlayInf) return;
+    overlaySup.innerHTML = '';
+    overlayInf.innerHTML = '';
+
+    odontogram.forEach(d => {
+      const mk = document.createElement('div');
+      mk.className = `tooth-marker ${d.estado}`;
+      mk.style.left = `${d.x}px`;
+      mk.style.top = `${d.y}px`;
+      mk.textContent = d.id;
+      mk.title = `${d.nombre}: ${d.estado === 'realizado' ? 'Realizado' : 'Pendiente'} (${d.notas || 'Sin notas'})`;
+      mk.dataset.id = d.id;
+
+      mk.onclick = () => openToothModal(d, curp);
+
+      if (d.arch === 'superior') {
+        overlaySup.appendChild(mk);
+      } else {
+        overlayInf.appendChild(mk);
+      }
+    });
+  }
+
+  function openToothModal(diente, curp) {
+    state.selectedDiente = { ...diente, curp };
+    const modal = document.getElementById('toothDetailModal');
+    if (!modal) return;
+
+    setText('modalToothName', diente.nombre);
+    setText('modalToothCoord', `Pieza #${diente.id} &middot; Arcada ${diente.arch.toUpperCase()} &middot; Paciente: ${curp}`);
+
+    const selectEstado = document.getElementById('modalToothState');
+    if (selectEstado) selectEstado.value = diente.estado;
+    const inputNotas = document.getElementById('modalToothNotes');
+    if (inputNotas) inputNotas.value = diente.notas || '';
+
+    modal.classList.add('open');
+  }
+
+  // Guardar Cambios en Modal de Diente
+  const btnSaveTooth = document.getElementById('btnSaveToothModal');
+  if (btnSaveTooth) {
+    btnSaveTooth.onclick = async () => {
+      if (!state.selectedDiente) return;
+      const nuevoEstado = document.getElementById('modalToothState').value;
+      const nuevasNotas = document.getElementById('modalToothNotes').value;
+
+      await window.StorageAdapter.updateDiente(
+        state.selectedDiente.curp,
+        state.selectedDiente.id,
+        nuevoEstado,
+        nuevasNotas
+      );
+
+      showToast(`Pieza dental #${state.selectedDiente.id} actualizada`, 'ok');
+      document.getElementById('toothDetailModal').classList.remove('open');
+
+      if (state.currentUser.rol === 'admin') {
+        await updateAdminInspectView(state.selectedDiente.curp);
+      } else {
+        await loadDoctorPatientDetails(state.selectedDiente.curp);
+      }
+    };
+  }
+
+  const btnCloseTooth = document.getElementById('btnCloseToothModal');
+  const btnCancelTooth = document.getElementById('btnCancelToothModal');
+  [btnCloseTooth, btnCancelTooth].forEach(b => {
+    if (b) b.onclick = () => document.getElementById('toothDetailModal').classList.remove('open');
+  });
+
+  // ==============================================================
+  // 5. EVENTOS GENERALES, AUTENTICACIÓN & HELPERS
   // ==============================================================
 
   function setupAuthEvents() {
@@ -190,7 +940,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
     }
 
-    // Botones Demo 1-Clic
+    // Botones demo 1-clic
     document.querySelectorAll('.quick-user-btn').forEach(btn => {
       btn.onclick = async () => {
         const email = btn.dataset.email;
@@ -200,7 +950,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const res = await window.StorageAdapter.login(email, pass);
         if (res.success) {
-          showToast(`Acceso exitoso: ${res.user.nombre} (${res.user.rol.toUpperCase()})`, 'ok');
+          showToast(`Acceso exitoso: ${res.user.nombre}`, 'ok');
           checkUserSession();
         } else {
           showToast(res.error, 'bad');
@@ -221,554 +971,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // ==============================================================
-  // CARGA Y RENDERIZADO DE DATOS DEL PACIENTE
-  // ==============================================================
-
-  async function loadPatientData(curp) {
-    if (!curp) return;
-    state.currentCurp = curp.toUpperCase();
-
-    document.querySelectorAll('.curp-display-val').forEach(el => {
-      el.textContent = state.currentCurp;
-    });
-
-    state.currentPatient = await window.StorageAdapter.getPaciente(state.currentCurp);
-    state.treatments = await window.StorageAdapter.getTratamientos(state.currentCurp);
-    state.odontogram = await window.StorageAdapter.getOdontograma(state.currentCurp);
-    state.appointments = await window.StorageAdapter.getCitas(state.currentCurp);
-
-    renderPatientSelector();
-    renderPatientDetails();
-    renderHistorialCards();
-    renderOdontograma();
-    renderAppointmentDetails();
-    renderPaymentDetails();
-
-    if (window.StorageAdapter.isAdmin()) {
-      await renderAdminMetrics();
-    }
-  }
-
-  async function renderPatientSelector() {
-    const selector = document.getElementById('quickPatientSelector');
-    if (!selector) return;
-    const pacientes = await window.StorageAdapter.getPacientes();
-    selector.innerHTML = '';
-
-    if (pacientes.length === 0) {
-      const opt = document.createElement('option');
-      opt.textContent = 'Sin pacientes asignados';
-      selector.appendChild(opt);
-      return;
-    }
-
-    pacientes.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p.curp;
-      opt.textContent = `${p.nombre} (${p.curp})`;
-      if (p.curp === state.currentCurp) opt.selected = true;
-      selector.appendChild(opt);
-    });
-  }
-
-  function renderPatientDetails() {
-    const p = state.currentPatient;
-    if (!p) return;
-
-    setText('viewNombre', p.nombre || '-');
-    setText('viewEdad', (p.edad ? p.edad + ' años' : '-'));
-    setText('viewTelefono', p.telefono || '-');
-    setText('viewCorreo', p.correo || '-');
-    setText('viewDireccion', p.direccion || '-');
-    setText('viewNss', p.nss || '-');
-    setText('viewCurp', p.curp || '-');
-    setText('viewDentista', p.dentista || 'Dr. Ramón');
-    setText('viewConsultorio', p.consultorio || '#3');
-  }
-
-  function renderHistorialCards() {
-    const containers = [
-      document.getElementById('historialListContainer'),
-      document.getElementById('historialOdontogramContainer')
-    ];
-
-    containers.forEach(container => {
-      if (!container) return;
-      container.innerHTML = '';
-
-      if (!state.treatments || state.treatments.length === 0) {
-        container.innerHTML = '<div style="padding:16px;text-align:center;color:#64748B;font-size:13px">Sin tratamientos registrados</div>';
-        return;
-      }
-
-      state.treatments.forEach(t => {
-        const item = document.createElement('div');
-        item.className = 'historial-item';
-
-        const realizadoPill = t.realizado 
-          ? '<span class="pill ok"><i></i>Realizado</span>' 
-          : '<span class="pill warn"><i></i>Pendiente</span>';
-
-        const pagadoPill = t.pagado 
-          ? '<span class="pill ok"><i></i>Pagado</span>' 
-          : '<span class="pill bad"><i></i>No pagado</span>';
-
-        item.innerHTML = `
-          <div>
-            <div class="t-name">${t.nombre}</div>
-            <div class="t-meta">Dr(a). ${t.dentista || 'Clínico'} &middot; Costo: $${Number(t.costo).toFixed(2)} MXN &middot; ${t.fecha || 'Fecha programada'}</div>
-          </div>
-          <div style="display: flex; gap: 8px;">
-            ${realizadoPill}
-            ${pagadoPill}
-          </div>
-        `;
-        container.appendChild(item);
-      });
-    });
-  }
-
-  // ==============================================================
-  // ODONTOGRAMA 360° (AMBAS ARCADAS: SUPERIOR E INFERIOR)
-  // ==============================================================
-
-  function renderOdontograma() {
-    const overlaySuperior = document.getElementById('markersOverlaySuperior');
-    const overlayInferior = document.getElementById('markersOverlayInferior');
-
-    if (!overlaySuperior || !overlayInferior) return;
-    overlaySuperior.innerHTML = '';
-    overlayInferior.innerHTML = '';
-
-    state.odontogram.forEach(d => {
-      const mk = document.createElement('div');
-      mk.className = `tooth-marker ${d.estado}`;
-      mk.style.left = `${d.x}px`;
-      mk.style.top = `${d.y}px`;
-      mk.textContent = d.id; // Número FDI de la pieza dental
-      mk.title = `${d.nombre}: ${d.estado === 'realizado' ? 'Realizado' : 'Pendiente'} (${d.notas || 'Sin notas'})`;
-      mk.dataset.id = d.id;
-
-      mk.onclick = () => openToothDetailModal(d);
-
-      if (d.arch === 'superior') {
-        overlaySuperior.appendChild(mk);
-      } else {
-        overlayInferior.appendChild(mk);
-      }
-    });
-  }
-
-  function openToothDetailModal(diente) {
-    state.selectedDiente = diente;
-    const modal = document.getElementById('toothDetailModal');
-    if (!modal) return;
-
-    setText('modalToothName', `${diente.nombre}`);
-    setText('modalToothCoord', `Arcada: ${diente.arch.toUpperCase()} | Pieza FDI #${diente.id} | Posición (${diente.x}, ${diente.y})`);
-
-    const selectEstado = document.getElementById('modalToothState');
-    if (selectEstado) selectEstado.value = diente.estado;
-    const inputNotas = document.getElementById('modalToothNotes');
-    if (inputNotas) inputNotas.value = diente.notas || '';
-
-    modal.classList.add('open');
-  }
-
-  // ==============================================================
-  // CITAS MÉDICAS & AGENDA
-  // ==============================================================
-
-  async function renderAppointmentDetails() {
-    const p = state.currentPatient;
-
-    let citasFiltradas = state.appointments;
-    if (window.StorageAdapter.isAdmin() && state.agendaDoctorFilter) {
-      citasFiltradas = await window.StorageAdapter.getCitas(null, state.agendaDoctorFilter);
-    }
-
-    const activeCita = (citasFiltradas && citasFiltradas.length > 0) ? citasFiltradas[0] : null;
-
-    if (activeCita) {
-      setText('citaSearchDentista', activeCita.dentista);
-      setText('citaSearchConsultorio', activeCita.consultorio);
-      setText('citaSearchTratamiento', activeCita.siguiente_tratamiento);
-      setText('citaSearchCosto', `$${Number(activeCita.costo).toFixed(2)} MXN`);
-      setText('citaSearchFechaHora', `${activeCita.fecha} a las ${activeCita.hora} (${activeCita.estado.toUpperCase()})`);
-
-      const cancelBtn = document.getElementById('btnCancelarCita');
-      if (cancelBtn) {
-        cancelBtn.disabled = (activeCita.estado === 'cancelada');
-        cancelBtn.textContent = (activeCita.estado === 'cancelada') ? 'Cita Cancelada' : 'Cancelar Cita';
-      }
-    } else {
-      setText('citaSearchDentista', p ? p.dentista : 'Dr. Ramón');
-      setText('citaSearchConsultorio', p ? p.consultorio : '#3');
-      setText('citaSearchTratamiento', 'Sin citas programadas');
-      setText('citaSearchCosto', '$0.00 MXN');
-      setText('citaSearchFechaHora', 'Ninguna');
-    }
-  }
-
-  // ==============================================================
-  // CAJA & FINANZAS (ADMIN)
-  // ==============================================================
-
-  function renderPaymentDetails() {
-    if (!window.StorageAdapter.isAdmin()) return;
-
-    const p = state.currentPatient;
-    if (!p) return;
-
-    setText('payDentista', p.dentista || 'Dr. Ramón');
-    setText('payConsultorio', p.consultorio || '#3');
-    setText('paySaldoDisplay', `$${Number(p.saldo || 0).toFixed(2)}`);
-
-    const unpaidTreatments = (state.treatments || []).filter(t => !t.pagado);
-    const pillsContainer = document.getElementById('payUnpaidPills');
-    if (pillsContainer) {
-      pillsContainer.innerHTML = '';
-      if (unpaidTreatments.length === 0) {
-        pillsContainer.innerHTML = '<span class="pill ok"><i></i>Al corriente (Sin adeudos)</span>';
-      } else {
-        unpaidTreatments.forEach(t => {
-          const span = document.createElement('span');
-          span.className = 'pill bad';
-          span.innerHTML = `<i></i>${t.nombre} ($${t.costo})`;
-          pillsContainer.appendChild(span);
-        });
-      }
-    }
-
-    const totalCost = unpaidTreatments.reduce((acc, curr) => acc + Number(curr.costo || 0), 0);
-    const costBreakdown = unpaidTreatments.map(t => `$${t.costo}`).join(' + ');
-    setText('payCostoCalculo', unpaidTreatments.length > 0 ? `${costBreakdown} = $${totalCost.toFixed(2)}` : '$0.00');
-
-    const btnPagarSaldo = document.getElementById('btnPagarSaldo');
-    if (btnPagarSaldo) {
-      btnPagarSaldo.disabled = (Number(p.saldo || 0) < totalCost || totalCost === 0);
-    }
-  }
-
-  async function renderAdminMetrics() {
-    if (!window.StorageAdapter.isAdmin()) return;
-    const metrics = await window.StorageAdapter.getMetricasFinancieras();
-    if (!metrics) return;
-
-    setText('metricTotalCobrado', `$${metrics.totalCobrado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`);
-    setText('metricTotalPendiente', `$${metrics.totalPendiente.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`);
-    setText('metricCitasHoy', String(metrics.citasHoy));
-    setText('metricTotalPacientes', String(metrics.totalPacientes));
-  }
-
-  // ==============================================================
-  // NAVEGACIÓN ENTRE MÓDULOS & SUB-TABS
-  // ==============================================================
-
-  function setupNavigationEvents() {
-    // Módulos Principales
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-      btn.onclick = () => {
-        const mod = btn.dataset.module;
-        if (mod === 'pagar' && !window.StorageAdapter.isAdmin()) {
-          showToast('Acceso restringido: Módulo exclusivo para Administradores', 'bad');
-          return;
-        }
-        switchModule(mod);
-      };
-    });
-
-    // Subtabs de Expediente
-    const subOption1 = document.getElementById('subtabOption1');
-    const subOption2 = document.getElementById('subtabOption2');
-
-    if (subOption1 && subOption2) {
-      subOption1.onclick = () => switchSubtab('nuevo');
-      subOption2.onclick = () => switchSubtab('buscar');
-    }
-
-    // Botones "Ver progreso / Odontograma"
-    document.querySelectorAll('.btn-ver-progreso').forEach(btn => {
-      btn.onclick = () => switchModule('progreso');
-    });
-
-    // Selector rápido de paciente
-    const patientSelector = document.getElementById('quickPatientSelector');
-    if (patientSelector) {
-      patientSelector.onchange = async (e) => {
-        await loadPatientData(e.target.value);
-        showToast('Paciente activo: ' + (state.currentPatient ? state.currentPatient.nombre : e.target.value));
-      };
-    }
-
-    // Búsqueda manual de CURP
-    const btnBuscarCurp = document.getElementById('btnBuscarCurpInput');
-    const inputBuscarCurp = document.getElementById('inputCurpSearch');
-    if (btnBuscarCurp && inputBuscarCurp) {
-      btnBuscarCurp.onclick = async () => {
-        const val = inputBuscarCurp.value.trim().toUpperCase();
-        if (!val) {
-          showToast('Introduce una CURP válida', 'warn');
-          return;
-        }
-        const found = await window.StorageAdapter.getPaciente(val);
-        if (found) {
-          if (window.StorageAdapter.isDoctor() && (found.dentista || '').toLowerCase() !== window.StorageAdapter.getCurrentUser().nombre.toLowerCase()) {
-            showToast('Acceso restringido: Este paciente pertenece a otro doctor', 'bad');
-            return;
-          }
-          await loadPatientData(val);
-          showToast('Paciente encontrado: ' + found.nombre, 'ok');
-          inputBuscarCurp.value = '';
-        } else {
-          showToast('No se encontró paciente con esa CURP', 'bad');
-        }
-      };
-    }
-  }
-
-  function switchModule(moduleName) {
-    state.currentModule = moduleName;
-
-    document.querySelectorAll('.nav-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.module === moduleName);
-    });
-
-    document.querySelectorAll('.module-content-pane').forEach(pane => {
-      pane.style.display = (pane.dataset.module === moduleName) ? 'block' : 'none';
-    });
-
-    const subbar = document.querySelector('.module-subbar');
-    const subtabs = document.getElementById('dynamicSubtabs');
-    if (subtabs) {
-      subtabs.style.display = (moduleName === 'control') ? 'flex' : 'none';
-    }
-
-    if (moduleName === 'progreso') renderOdontograma();
-    if (moduleName === 'agendar') renderAppointmentDetails();
-    if (moduleName === 'pagar') {
-      renderPaymentDetails();
-      renderAdminMetrics();
-    }
-  }
-
-  function switchSubtab(subtabName) {
-    const sub1 = document.getElementById('subtabOption1');
-    const sub2 = document.getElementById('subtabOption2');
-    if (sub1 && sub2) {
-      sub1.classList.toggle('on', subtabName === 'nuevo');
-      sub2.classList.toggle('on', subtabName === 'buscar');
-    }
-
-    document.querySelectorAll('.tab-pane').forEach(pane => {
-      pane.style.display = (pane.dataset.subtab === subtabName) ? 'block' : 'none';
-    });
-  }
-
-  // ==============================================================
-  // FORMULARIOS & ACCIONES CLÍNICAS
-  // ==============================================================
-
-  function setupFormEvents() {
-    // Formulario Registrar Paciente
-    const formNuevoPaciente = document.getElementById('formNuevoPaciente');
-    if (formNuevoPaciente) {
-      formNuevoPaciente.onsubmit = async (e) => {
-        e.preventDefault();
-        const curpVal = document.getElementById('inpCurp').value.trim().toUpperCase();
-        const nombreVal = document.getElementById('inpNombre').value.trim();
-
-        if (!curpVal || curpVal.length < 10) {
-          showToast('Introduce una CURP válida (mínimo 10 caracteres)', 'warn');
-          return;
-        }
-
-        const currentUser = window.StorageAdapter.getCurrentUser();
-        const dentistaVal = window.StorageAdapter.isDoctor() 
-          ? currentUser.nombre 
-          : (document.getElementById('inpDentistaSelect').value || 'Dr. Ramón');
-
-        const consultorioVal = window.StorageAdapter.isDoctor()
-          ? currentUser.consultorio
-          : (document.getElementById('inpConsultorio').value || '#3');
-
-        const nuevo = {
-          curp: curpVal,
-          nombre: nombreVal,
-          edad: Number(document.getElementById('inpEdad').value) || 0,
-          telefono: document.getElementById('inpTelefono').value.trim(),
-          correo: document.getElementById('inpCorreo').value.trim(),
-          direccion: document.getElementById('inpDireccion').value.trim(),
-          nss: document.getElementById('inpNss').value.trim(),
-          dentista: dentistaVal,
-          consultorio: consultorioVal,
-          saldo: 0.00
-        };
-
-        await window.StorageAdapter.savePaciente(nuevo);
-        showToast('¡Paciente registrado con éxito!', 'ok');
-        formNuevoPaciente.reset();
-
-        await loadPatientData(curpVal);
-        switchSubtab('buscar');
-      };
-    }
-
-    // Formulario Agendar Cita
-    const formNuevaCita = document.getElementById('formNuevaCita');
-    if (formNuevaCita) {
-      formNuevaCita.onsubmit = async (e) => {
-        e.preventDefault();
-        if (!state.currentCurp) {
-          showToast('Selecciona un paciente primero', 'warn');
-          return;
-        }
-
-        const currentUser = window.StorageAdapter.getCurrentUser();
-        const dentistaVal = window.StorageAdapter.isDoctor()
-          ? currentUser.nombre
-          : (document.getElementById('citaDentistaSelect').value || 'Dr. Ramón');
-
-        const consultorioVal = window.StorageAdapter.isDoctor()
-          ? currentUser.consultorio
-          : (document.getElementById('citaConsultorioInp').value || '#3');
-
-        const nuevaCita = {
-          curp_paciente: state.currentCurp,
-          paciente_nombre: state.currentPatient ? state.currentPatient.nombre : '',
-          dentista: dentistaVal,
-          consultorio: consultorioVal,
-          siguiente_tratamiento: document.getElementById('citaTratamientoInp').value.trim() || 'Consulta general',
-          costo: Number(document.getElementById('citaCostoInp').value) || 0,
-          fecha: document.getElementById('citaFechaInp').value || new Date().toISOString().split('T')[0],
-          hora: document.getElementById('citaHoraInp').value || '10:00 AM',
-          estado: 'agendada'
-        };
-
-        await window.StorageAdapter.saveCita(nuevaCita);
-        showToast('¡Cita agendada exitosamente!', 'ok');
-
-        await window.StorageAdapter.addTratamiento({
-          curp_paciente: state.currentCurp,
-          nombre: nuevaCita.siguiente_tratamiento,
-          costo: nuevaCita.costo,
-          realizado: false,
-          pagado: false,
-          fecha: nuevaCita.fecha,
-          dentista: nuevaCita.dentista
-        });
-
-        await loadPatientData(state.currentCurp);
-      };
-    }
-
-    // Cancelar Cita
-    const btnCancelarCita = document.getElementById('btnCancelarCita');
-    if (btnCancelarCita) {
-      btnCancelarCita.onclick = async () => {
-        if (!state.appointments || state.appointments.length === 0) return;
-        const c = state.appointments[0];
-        if (confirm(`¿Cancelar la cita para ${c.siguiente_tratamiento}?`)) {
-          await window.StorageAdapter.updateEstadoCita(c.id, 'cancelada');
-          showToast('Cita cancelada correctamente', 'ok');
-          await loadPatientData(state.currentCurp);
-        }
-      };
-    }
-
-    // Ir a Pagar desde Cita
-    const btnIrAPagarCita = document.getElementById('btnIrAPagarCita');
-    if (btnIrAPagarCita) {
-      btnIrAPagarCita.onclick = () => {
-        if (!window.StorageAdapter.isAdmin()) {
-          showToast('Solo el Administrador puede procesar cobros', 'bad');
-          return;
-        }
-        switchModule('pagar');
-      };
-    }
-
-    // Botones de Cobro / Caja (Admin)
-    const btnPagarSaldo = document.getElementById('btnPagarSaldo');
-    const btnPagarFisico = document.getElementById('btnPagarFisico');
-    const btnPagarDespues = document.getElementById('btnPagarDespues');
-
-    async function ejecutarPago(metodo) {
-      if (!window.StorageAdapter.isAdmin()) {
-        showToast('Permiso denegado: Función exclusiva para Administración', 'bad');
-        return;
-      }
-
-      const unpaid = (state.treatments || []).filter(t => !t.pagado);
-      if (unpaid.length === 0 && metodo !== 'despues') {
-        showToast('El paciente no tiene adeudos pendientes', 'ok');
-        return;
-      }
-
-      const montoTotal = unpaid.reduce((a, b) => a + Number(b.costo || 0), 0);
-      const ids = unpaid.map(u => u.id);
-
-      try {
-        const res = await window.StorageAdapter.procesarPago(state.currentCurp, montoTotal, metodo, ids);
-        showToast(res.message, 'ok');
-        await loadPatientData(state.currentCurp);
-        await renderAdminMetrics();
-      } catch (err) {
-        showToast(err.message, 'bad');
-      }
-    }
-
-    if (btnPagarSaldo) btnPagarSaldo.onclick = () => ejecutarPago('saldo');
-    if (btnPagarFisico) btnPagarFisico.onclick = () => ejecutarPago('fisico');
-    if (btnPagarDespues) btnPagarDespues.onclick = () => ejecutarPago('despues');
-
-    // Modal de Diente: Guardar diagnóstico
-    const btnGuardarDiente = document.getElementById('btnSaveToothModal');
-    if (btnGuardarDiente) {
-      btnGuardarDiente.onclick = async () => {
-        if (!state.selectedDiente) return;
-        const nuevoEstado = document.getElementById('modalToothState').value;
-        const nuevasNotas = document.getElementById('modalToothNotes').value;
-
-        await window.StorageAdapter.updateDiente(
-          state.currentCurp,
-          state.selectedDiente.id,
-          nuevoEstado,
-          nuevasNotas
-        );
-
-        showToast(`${state.selectedDiente.nombre} actualizada`, 'ok');
-        document.getElementById('toothDetailModal').classList.remove('open');
-        await loadPatientData(state.currentCurp);
-      };
-    }
-
-    // Modal de Diente: Cerrar
-    const btnCloseTooth = document.getElementById('btnCloseToothModal');
-    const btnCancelTooth = document.getElementById('btnCancelToothModal');
-    [btnCloseTooth, btnCancelTooth].forEach(b => {
-      if (b) b.onclick = () => document.getElementById('toothDetailModal').classList.remove('open');
-    });
-  }
-
-  // ==============================================================
-  // CONFIGURACIÓN SUPABASE & MODAL
-  // ==============================================================
-
-  function updateDbStatusBadge() {
-    const badge = document.getElementById('dbStatusBadge');
-    if (!badge) return;
-
-    if (window.StorageAdapter && window.StorageAdapter.isCloudConnected()) {
-      badge.className = 'db-status-pill cloud';
-      badge.innerHTML = '<span class="status-dot"></span> Supabase Cloud';
-    } else {
-      badge.className = 'db-status-pill';
-      badge.innerHTML = '<span class="status-dot"></span> Modo Local';
-    }
-  }
-
   function setupDbModalEvents() {
     const modal = document.getElementById('dbConfigModal');
     const badge = document.getElementById('dbStatusBadge');
@@ -784,72 +986,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         modal.classList.add('open');
       };
     }
+    if (closeBtn && modal) closeBtn.onclick = () => modal.classList.remove('open');
 
-    if (closeBtn && modal) {
-      closeBtn.onclick = () => modal.classList.remove('open');
-    }
-
-    // Probar conexión
     const btnTest = document.getElementById('btnTestSupabase');
     if (btnTest) {
       btnTest.onclick = async () => {
         const url = document.getElementById('dbSupabaseUrl').value.trim();
         const key = document.getElementById('dbSupabaseKey').value.trim();
-        if (!url || !key) {
-          showToast('Introduce la URL y Anon Key', 'warn');
-          return;
-        }
         btnTest.disabled = true;
         btnTest.textContent = 'Probando...';
         const res = await window.StorageAdapter.testConnection(url, key);
         btnTest.disabled = false;
         btnTest.textContent = 'Probar Conexión';
-
-        if (res.success) {
-          showToast(res.message, 'ok');
-        } else {
-          showToast('Error de conexión: ' + res.error, 'bad');
-        }
+        showToast(res.message || res.error, res.success ? 'ok' : 'bad');
       };
     }
 
-    // Guardar credenciales
     const btnSaveDb = document.getElementById('btnSaveDbConfig');
     if (btnSaveDb) {
-      btnSaveDb.onclick = async () => {
+      btnSaveDb.onclick = () => {
         const url = document.getElementById('dbSupabaseUrl').value.trim();
         const key = document.getElementById('dbSupabaseKey').value.trim();
-
-        window.StorageAdapter.saveConfig({
-          supabaseUrl: url,
-          supabaseKey: key,
-          activeBackend: (url && key) ? 'supabase' : 'local'
-        });
-
-        updateDbStatusBadge();
+        window.StorageAdapter.saveConfig({ supabaseUrl: url, supabaseKey: key, activeBackend: (url && key) ? 'supabase' : 'local' });
         showToast('Credenciales guardadas', 'ok');
         modal.classList.remove('open');
-        await loadPatientData(state.currentCurp);
       };
     }
 
-    // Modo local
-    const btnUseLocal = document.getElementById('btnUseLocalDb');
-    if (btnUseLocal) {
-      btnUseLocal.onclick = async () => {
-        window.StorageAdapter.saveConfig({
-          supabaseUrl: '',
-          supabaseKey: '',
-          activeBackend: 'local'
-        });
-        updateDbStatusBadge();
-        showToast('Modo Local activado', 'ok');
-        modal.classList.remove('open');
-        await loadPatientData(state.currentCurp);
-      };
-    }
-
-    // Exportar JSON
     const btnExport = document.getElementById('btnExportJson');
     if (btnExport) {
       btnExport.onclick = () => {
@@ -861,27 +1024,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         a.download = `dentalcare_backup_${Date.now()}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        showToast('Copia de seguridad descargada', 'ok');
-      };
-    }
-
-    // Reset Demo
-    const btnReset = document.getElementById('btnResetDemoData');
-    if (btnReset) {
-      btnReset.onclick = async () => {
-        if (confirm('¿Restablecer datos clínicos iniciales?')) {
-          window.StorageAdapter.resetDemoData();
-          showToast('Datos de muestra restablecidos', 'ok');
-          modal.classList.remove('open');
-          await loadPatientData('MORG850912HMCRRL01');
-        }
+        showToast('Copia descargada', 'ok');
       };
     }
   }
-
-  // ==============================================================
-  // HELPERS
-  // ==============================================================
 
   function setText(id, text) {
     const el = document.getElementById(id);

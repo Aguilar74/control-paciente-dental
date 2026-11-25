@@ -4,9 +4,9 @@
  * Proyecto Supabase: https://qidwrxlfovuchxgzcdln.supabase.co
  */
 
-const STORAGE_KEY_CONFIG = 'cp_dental_config_v3';
-const STORAGE_KEY_DATA = 'cp_dental_data_v3';
-const STORAGE_KEY_SESSION = 'cp_dental_session_v3';
+const STORAGE_KEY_CONFIG = 'cp_dental_config_v4';
+const STORAGE_KEY_DATA = 'cp_dental_data_v4';
+const STORAGE_KEY_SESSION = 'cp_dental_session_v4';
 
 // 32 Piezas Dentales Permanentes (Norma FDI Internacional)
 // Arcada Superior: 18 al 28 (16 piezas) | Arcada Inferior: 48 al 38 (16 piezas)
@@ -79,11 +79,12 @@ const DEFAULT_DEMO_DATA = {
     }
   ],
   pacientes: [
+    // Pacientes Dr. Ramón
     {
       curp: 'MORG850912HMCRRL01',
       nombre: 'María González Ramírez',
       edad: 39,
-      telefono: '5541239876',
+      telefono: '55 4123 9876',
       correo: 'maria.gonzalez@gmail.com',
       direccion: 'Av. Insurgentes Sur 452, Col. Roma, CDMX',
       nss: '1285093412',
@@ -96,7 +97,7 @@ const DEFAULT_DEMO_DATA = {
       curp: 'HERJ880719HMCRRL05',
       nombre: 'Juan Carlos Hernández',
       edad: 36,
-      telefono: '5533221100',
+      telefono: '55 3322 1100',
       correo: 'juan.hernandez@gmail.com',
       direccion: 'Col. Nápoles, Benito Juárez, CDMX',
       nss: '5588071900',
@@ -106,10 +107,25 @@ const DEFAULT_DEMO_DATA = {
       created_at: new Date().toISOString()
     },
     {
+      curp: 'METL930412MDFRNS04',
+      nombre: 'Lucía Méndez Torres',
+      edad: 31,
+      telefono: '55 4987 1234',
+      correo: 'lucia.mendez@hotmail.com',
+      direccion: 'Calle Durango 88, Col. Condesa, CDMX',
+      nss: '4393041289',
+      dentista: 'Dr. Ramón',
+      consultorio: '#3',
+      saldo: 0.00,
+      created_at: new Date().toISOString()
+    },
+
+    // Pacientes Dra. Sofía
+    {
       curp: 'PEAR900325HMCRRN02',
       nombre: 'Alejandro Pérez Ramos',
       edad: 34,
-      telefono: '5589765432',
+      telefono: '55 8976 5432',
       correo: 'alejandro.perez@gmail.com',
       direccion: 'Calle Reforma 102, Guadalajara, JAL',
       nss: '3490038765',
@@ -117,69 +133,58 @@ const DEFAULT_DEMO_DATA = {
       consultorio: '#1',
       saldo: 0.00,
       created_at: new Date().toISOString()
+    },
+    {
+      curp: 'CAVD891120MDFRN09',
+      nombre: 'Diana Castillo Vega',
+      edad: 35,
+      telefono: '55 6789 1234',
+      correo: 'diana.castillo@gmail.com',
+      direccion: 'Av. Coyoacán 1200, Col. Del Valle, CDMX',
+      nss: '2289112044',
+      dentista: 'Dra. Sofía',
+      consultorio: '#1',
+      saldo: 1500.00,
+      created_at: new Date().toISOString()
+    },
+    {
+      curp: 'MOLR950614HDFRNT01',
+      nombre: 'Roberto Morales Luna',
+      edad: 29,
+      telefono: '55 7890 4321',
+      correo: 'roberto.morales@outlook.com',
+      direccion: 'Av. Universidad 450, Coyoacán, CDMX',
+      nss: '1195061456',
+      dentista: 'Dra. Sofía',
+      consultorio: '#1',
+      saldo: 450.00,
+      created_at: new Date().toISOString()
     }
   ],
   tratamientos: [
-    {
-      id: 't-1',
-      curp_paciente: 'MORG850912HMCRRL01',
-      nombre: 'Limpieza y Profilaxis Ultrasónica',
-      costo: 500.00,
-      realizado: true,
-      pagado: true,
-      fecha: '2026-10-15',
-      dentista: 'Dr. Ramón'
-    },
-    {
-      id: 't-2',
-      curp_paciente: 'MORG850912HMCRRL01',
-      nombre: 'Resina Estética Pieza 14',
-      costo: 650.00,
-      realizado: true,
-      pagado: true,
-      fecha: '2026-10-28',
-      dentista: 'Dr. Ramón'
-    },
-    {
-      id: 't-3',
-      curp_paciente: 'MORG850912HMCRRL01',
-      nombre: 'Endodoncia Molar 26',
-      costo: 1800.00,
-      realizado: true,
-      pagado: false,
-      fecha: '2026-11-10',
-      dentista: 'Dr. Ramón'
-    },
-    {
-      id: 't-4',
-      curp_paciente: 'MORG850912HMCRRL01',
-      nombre: 'Corona de Porcelana Zirconia Pieza 16',
-      costo: 2500.00,
-      realizado: false,
-      pagado: false,
-      fecha: '2026-11-20',
-      dentista: 'Dr. Ramón'
-    },
-    {
-      id: 't-5',
-      curp_paciente: 'HERJ880719HMCRRL05',
-      nombre: 'Extracción Tercer Molar Pieza 48',
-      costo: 1200.00,
-      realizado: true,
-      pagado: false,
-      fecha: '2026-11-22',
-      dentista: 'Dr. Ramón'
-    },
-    {
-      id: 't-6',
-      curp_paciente: 'PEAR900325HMCRRN02',
-      nombre: 'Ajuste de Brackets Metálicos',
-      costo: 800.00,
-      realizado: true,
-      pagado: true,
-      fecha: '2026-11-18',
-      dentista: 'Dra. Sofía'
-    }
+    // MORG850912HMCRRL01 (Dr. Ramón)
+    { id: 't-1', curp_paciente: 'MORG850912HMCRRL01', nombre: 'Limpieza y Profilaxis Ultrasónica', costo: 500.00, realizado: true, pagado: true, fecha: '2026-10-15', dentista: 'Dr. Ramón' },
+    { id: 't-2', curp_paciente: 'MORG850912HMCRRL01', nombre: 'Resina Estética Pieza 14', costo: 650.00, realizado: true, pagado: true, fecha: '2026-10-28', dentista: 'Dr. Ramón' },
+    { id: 't-3', curp_paciente: 'MORG850912HMCRRL01', nombre: 'Endodoncia Molar 26', costo: 1800.00, realizado: true, pagado: false, fecha: '2026-11-10', dentista: 'Dr. Ramón' },
+    { id: 't-4', curp_paciente: 'MORG850912HMCRRL01', nombre: 'Corona de Porcelana Zirconia Pieza 16', costo: 2500.00, realizado: false, pagado: false, fecha: '2026-11-20', dentista: 'Dr. Ramón' },
+    
+    // HERJ880719HMCRRL05 (Dr. Ramón)
+    { id: 't-5', curp_paciente: 'HERJ880719HMCRRL05', nombre: 'Extracción Quirúrgica Molar 48', costo: 1200.00, realizado: true, pagado: false, fecha: '2026-11-22', dentista: 'Dr. Ramón' },
+    { id: 't-6', curp_paciente: 'HERJ880719HMCRRL05', nombre: 'Curación y Apósito Alveolar', costo: 350.00, realizado: true, pagado: true, fecha: '2026-11-24', dentista: 'Dr. Ramón' },
+
+    // METL930412MDFRNS04 (Dr. Ramón)
+    { id: 't-7', curp_paciente: 'METL930412MDFRNS04', nombre: 'Blanqueamiento Dental LED', costo: 2200.00, realizado: true, pagado: true, fecha: '2026-11-12', dentista: 'Dr. Ramón' },
+
+    // PEAR900325HMCRRN02 (Dra. Sofía)
+    { id: 't-8', curp_paciente: 'PEAR900325HMCRRN02', nombre: 'Ajuste de Brackets Metálicos', costo: 800.00, realizado: true, pagado: true, fecha: '2026-11-18', dentista: 'Dra. Sofía' },
+    { id: 't-9', curp_paciente: 'PEAR900325HMCRRN02', nombre: 'Cambio de Arcos NiTi y Elásticos', costo: 600.00, realizado: false, pagado: false, fecha: '2026-11-27', dentista: 'Dra. Sofía' },
+
+    // CAVD891120MDFRN09 (Dra. Sofía)
+    { id: 't-10', curp_paciente: 'CAVD891120MDFRN09', nombre: 'Escaneo Intraoral 3D y Modelos', costo: 1400.00, realizado: true, pagado: true, fecha: '2026-11-05', dentista: 'Dra. Sofía' },
+    { id: 't-11', curp_paciente: 'CAVD891120MDFRN09', nombre: 'Retenedor Estético Termoformado', costo: 2800.00, realizado: false, pagado: false, fecha: '2026-11-25', dentista: 'Dra. Sofía' },
+
+    // MOLR950614HDFRNT01 (Dra. Sofía)
+    { id: 't-12', curp_paciente: 'MOLR950614HDFRNT01', nombre: 'Guarda Oclusal Nocturna Miorrelajante', costo: 1950.00, realizado: true, pagado: false, fecha: '2026-11-20', dentista: 'Dra. Sofía' }
   ],
   odontograma: {
     'MORG850912HMCRRL01': JSON.parse(JSON.stringify(DEFAULT_32_TEETH))
@@ -193,7 +198,7 @@ const DEFAULT_DEMO_DATA = {
       consultorio: '#3',
       siguiente_tratamiento: 'Corona de Porcelana Zirconia Pieza 16',
       costo: 2500.00,
-      fecha: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
+      fecha: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
       hora: '10:00 AM',
       estado: 'agendada'
     },
@@ -215,10 +220,34 @@ const DEFAULT_DEMO_DATA = {
       paciente_nombre: 'Alejandro Pérez Ramos',
       dentista: 'Dra. Sofía',
       consultorio: '#1',
-      siguiente_tratamiento: 'Control de Ortodoncia',
-      costo: 800.00,
-      fecha: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0],
+      siguiente_tratamiento: 'Control de Ortodoncia y Arcos',
+      costo: 600.00,
+      fecha: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
       hora: '04:00 PM',
+      estado: 'agendada'
+    },
+    {
+      id: 'c-4',
+      curp_paciente: 'CAVD891120MDFRN09',
+      paciente_nombre: 'Diana Castillo Vega',
+      dentista: 'Dra. Sofía',
+      consultorio: '#1',
+      siguiente_tratamiento: 'Entrega de Retenedores Estéticos',
+      costo: 2800.00,
+      fecha: new Date().toISOString().split('T')[0],
+      hora: '11:00 AM',
+      estado: 'agendada'
+    },
+    {
+      id: 'c-5',
+      curp_paciente: 'MOLR950614HDFRNT01',
+      paciente_nombre: 'Roberto Morales Luna',
+      dentista: 'Dra. Sofía',
+      consultorio: '#1',
+      siguiente_tratamiento: 'Ajuste de Guarda Oclusal',
+      costo: 450.00,
+      fecha: new Date(Date.now() + 86400000 * 4).toISOString().split('T')[0],
+      hora: '05:30 PM',
       estado: 'agendada'
     }
   ]
@@ -269,7 +298,6 @@ class StorageAdapter {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPass = password.trim();
 
-    // 1. Probar en Supabase si está disponible
     if (this.isCloudConnected()) {
       try {
         const { data, error } = await this.supabaseClient
@@ -296,7 +324,6 @@ class StorageAdapter {
       }
     }
 
-    // 2. Probar en almacenamiento local
     const local = this.getLocalData();
     const users = local.usuarios || DEFAULT_DEMO_DATA.usuarios;
     const found = users.find(u => u.email.toLowerCase() === cleanEmail && u.password === cleanPass);
@@ -330,7 +357,6 @@ class StorageAdapter {
     } catch (e) {
       console.warn('Error reading config', e);
     }
-    // Credenciales oficiales de Supabase proporcionadas por el usuario
     return {
       supabaseUrl: 'https://qidwrxlfovuchxgzcdln.supabase.co',
       supabaseKey: 'sb_publishable_8z6Zj-VJTcTKjDdZzs1baQ_mLoApdBO',
@@ -416,6 +442,21 @@ class StorageAdapter {
     }
 
     return list;
+  }
+
+  async getPacientesPorDoctor() {
+    const allPacientes = await this.getPacientes(false); // todos
+    const doctores = this.getDoctores();
+    const result = {};
+
+    doctores.forEach(doc => {
+      result[doc.nombre] = {
+        doctor: doc,
+        pacientes: allPacientes.filter(p => (p.dentista || '').toLowerCase() === doc.nombre.toLowerCase())
+      };
+    });
+
+    return result;
   }
 
   async getPaciente(curp) {
@@ -550,7 +591,6 @@ class StorageAdapter {
           .select('*')
           .eq('curp_paciente', cleanCurp);
         if (!error && data && data.length > 0) {
-          // Unir con posiciones base
           return DEFAULT_32_TEETH.map(base => {
             const row = data.find(r => r.diente_num === base.id);
             return row ? { ...base, estado: row.estado, notas: row.notas } : base;
@@ -720,7 +760,7 @@ class StorageAdapter {
       }
       nuevoSaldo -= monto;
     } else if (metodo === 'fisico') {
-      // Pago presencial liquidado
+      // Pago presencial liquidado en efectivo o terminal
     } else if (metodo === 'despues') {
       return { success: true, message: 'Pago programado para liquidación posterior', nuevoSaldo };
     }
@@ -744,6 +784,7 @@ class StorageAdapter {
     const tratamientos = local.tratamientos || [];
     const pacientes = local.pacientes || [];
     const citas = local.citas || [];
+    const doctores = this.getDoctores();
     const todayStr = new Date().toISOString().split('T')[0];
 
     const totalCobrado = tratamientos.filter(t => t.pagado).reduce((sum, t) => sum + Number(t.costo || 0), 0);
@@ -751,11 +792,30 @@ class StorageAdapter {
     const citasHoy = citas.filter(c => c.fecha === todayStr && c.estado !== 'cancelada').length;
     const totalPacientes = pacientes.length;
 
+    // Métricas desglosadas por Doctor
+    const porDoctor = {};
+    doctores.forEach(doc => {
+      const docPacientes = pacientes.filter(p => (p.dentista || '').toLowerCase() === doc.nombre.toLowerCase());
+      const docCurps = docPacientes.map(p => p.curp);
+      const docTratamientos = tratamientos.filter(t => docCurps.includes(t.curp_paciente));
+      const docCitasHoy = citas.filter(c => (c.dentista || '').toLowerCase() === doc.nombre.toLowerCase() && c.fecha === todayStr && c.estado !== 'cancelada').length;
+
+      porDoctor[doc.nombre] = {
+        especialidad: doc.especialidad,
+        consultorio: doc.consultorio,
+        totalPacientes: docPacientes.length,
+        totalCobrado: docTratamientos.filter(t => t.pagado).reduce((sum, t) => sum + Number(t.costo || 0), 0),
+        totalPendiente: docTratamientos.filter(t => !t.pagado).reduce((sum, t) => sum + Number(t.costo || 0), 0),
+        citasHoy: docCitasHoy
+      };
+    });
+
     return {
       totalCobrado,
       totalPendiente,
       citasHoy,
-      totalPacientes
+      totalPacientes,
+      porDoctor
     };
   }
 

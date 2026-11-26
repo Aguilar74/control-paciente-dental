@@ -1,6 +1,7 @@
 /**
  * app.js - Lógica Integral DentalCare Pro
  * Vistas Totalmente Diferenciadas: Panel de Control Administrativo vs Estación Clínica del Doctor
+ * Diseño 100% Responsive, Acordeón Deslizable de Expedientes y Odontograma Proporcional
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -8,7 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentUser: null,
     currentCurp: null,
     currentPatient: null,
-    activeAdminDoctorFilter: 'all', // 'all' | 'Dr. Ramón' | 'Dra. Sofía'
+    activeAdminDoctorFilter: 'all',
     selectedDiente: null
   };
 
@@ -72,6 +73,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (mainTitle) mainTitle.textContent = 'DentalCare Pro';
       if (subTitle) subTitle.textContent = `CONSULTORIO ${state.currentUser.consultorio || '#3'} - ${state.currentUser.especialidad || 'ODONTOLOGÍA'}`;
 
+      // Etiqueta automática en formulario del doctor
+      const docAutoInp = document.getElementById('docInpDoctorAuto');
+      if (docAutoInp) docAutoInp.value = `${state.currentUser.nombre} (${state.currentUser.consultorio || '#3'})`;
+
       initDoctorWorkplace();
     }
   }
@@ -88,7 +93,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function reloadAdminData() {
     const metrics = await window.StorageAdapter.getMetricasFinancieras();
-    const allPatients = await window.StorageAdapter.getPacientes(false); // todos
+    const allPatients = await window.StorageAdapter.getPacientes(false);
     const allCitas = await window.StorageAdapter.getCitas(null, null);
 
     // 1. Renderizar KPIs Principales
@@ -125,8 +130,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const stats = porDoctor[doc.nombre] || { totalPacientes: 0, totalCobrado: 0, totalPendiente: 0, citasHoy: 0 };
       const card = document.createElement('div');
       card.className = 'doctor-team-card';
+      const initials = doc.nombre.replace('Dr. ', '').replace('Dra. ', '').substring(0, 2).toUpperCase();
       card.innerHTML = `
-        <div class="doctor-badge-avatar">🩺</div>
+        <div class="doctor-badge-avatar">${initials}</div>
         <div class="doc-meta">
           <h3>${doc.nombre}</h3>
           <div class="spec">${doc.especialidad} &middot; Consultorio <strong>${doc.consultorio}</strong></div>
@@ -141,11 +147,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
             <div class="stat">
               <span>Pendiente:</span>
-              <strong style="color:#DC2626">$${stats.totalPendiente.toFixed(0)}</strong>
+              <strong style="color:#DC2626">$ ${stats.totalPendiente.toFixed(0)}</strong>
             </div>
           </div>
           <button type="button" class="btn-action secondary sm btn-filter-doc-patients" data-doctor="${doc.nombre}">
-            Ver Pacientes Asignados &nbsp;→
+            Ver Pacientes Asignados &rarr;
           </button>
         </div>
       `;
@@ -179,7 +185,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         tr.innerHTML = `
           <td><strong>${p.nombre}</strong></td>
           <td><span class="pill" style="background:#F1F5F9;color:#334155;font-family:monospace;">${p.curp}</span></td>
-          <td>${p.dentista}</td>
+          <td><span class="pill ok">${p.dentista}</span></td>
           <td>${p.consultorio}</td>
           <td><strong style="color:#DC2626;">$${totalDebt.toFixed(2)}</strong></td>
           <td>$${Number(p.saldo || 0).toFixed(2)}</td>
@@ -194,7 +200,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     if (count === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:#64748B;">¡Excelente! No hay pacientes con adeudos pendientes.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:#64748B;">No hay pacientes con adeudos pendientes.</td></tr>';
     }
 
     tbody.querySelectorAll('.btn-cobrar-debtor').forEach(b => {
@@ -240,16 +246,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td><strong>${p.nombre}</strong></td>
         <td><span class="pill" style="background:#F1F5F9;font-family:monospace;">${p.curp}</span></td>
         <td>${p.edad ? p.edad + ' años' : '-'} &middot; ${p.telefono || '-'}</td>
-        <td>${p.dentista}</td>
+        <td><span class="pill ok">${p.dentista}</span></td>
         <td>${p.consultorio}</td>
         <td><strong style="color:#059669;">$${Number(p.saldo || 0).toFixed(2)}</strong></td>
         <td>
           <div style="display: flex; gap: 6px;">
-            <button type="button" class="btn-action secondary sm btn-inspect-patient" data-curp="${p.curp}" title="Ver Odontograma y Expediente">
-              🦷 Odontograma
+            <button type="button" class="btn-action secondary sm btn-inspect-patient" data-curp="${p.curp}" title="Ver Odontograma">
+              Odontograma
             </button>
             <button type="button" class="btn-action indigo sm btn-caja-patient" data-curp="${p.curp}" title="Cobrar / Saldo">
-              💳 Caja
+              Caja
             </button>
           </div>
         </td>
@@ -304,7 +310,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       tr.innerHTML = `
         <td><strong>${c.fecha}</strong> a las ${c.hora}</td>
         <td>${c.paciente_nombre || c.curp_paciente}</td>
-        <td>${c.dentista} (${c.consultorio})</td>
+        <td><span class="pill ok">${c.dentista} (${c.consultorio})</span></td>
         <td>${c.siguiente_tratamiento}</td>
         <td><strong>$${Number(c.costo).toFixed(2)}</strong></td>
         <td><span class="pill ${pillClass}"><i></i>${c.estado.toUpperCase()}</span></td>
@@ -316,7 +322,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   function populateAdminSelects(patients) {
     const doctores = window.StorageAdapter.getDoctores();
 
-    // Selects en Agendar Cita Admin
     const citaPacSel = document.getElementById('adminCitaPacienteSelect');
     const citaDocSel = document.getElementById('adminCitaDoctorSelect');
     const cajaPacSel = document.getElementById('adminCajaPacienteSelect');
@@ -345,19 +350,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     });
 
-    // Eventos de selección en Caja
     if (cajaPacSel) {
       cajaPacSel.onchange = () => updateAdminCajaView(cajaPacSel.value);
       if (patients.length > 0) updateAdminCajaView(patients[0].curp);
     }
 
-    // Eventos de selección en Inspección Odontograma
     if (inspectPacSel) {
       inspectPacSel.onchange = () => updateAdminInspectView(inspectPacSel.value);
       if (patients.length > 0) updateAdminInspectView(patients[0].curp);
     }
 
-    // Sincronizar consultorio automático en formulario cita admin
     if (citaDocSel) {
       citaDocSel.onchange = (e) => {
         const found = doctores.find(d => d.nombre === e.target.value);
@@ -436,7 +438,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
     });
 
-    // Filtros de doctores en pestaña pacientes
     document.querySelectorAll('.doc-filter-btn').forEach(btn => {
       btn.onclick = () => {
         const filter = btn.dataset.filter;
@@ -444,7 +445,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
     });
 
-    // Buscador en tiempo real de pacientes
     const searchInp = document.getElementById('searchAdminPatients');
     if (searchInp) {
       searchInp.oninput = async () => {
@@ -453,7 +453,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
     }
 
-    // Filtro de doctor en agenda global
     const agendaDocFilter = document.getElementById('filterAdminAgendaDoc');
     if (agendaDocFilter) {
       agendaDocFilter.onchange = async () => {
@@ -462,7 +461,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
     }
 
-    // Modal nuevo paciente desde Admin
     const btnModalNuevo = document.getElementById('btnAdminNuevoPacienteModal');
     const modalNuevo = document.getElementById('modalAdminNuevoPaciente');
     const btnCloseModal = document.getElementById('btnCloseAdminPacienteModal');
@@ -501,7 +499,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function setupAdminForms() {
-    // Formulario Registrar Paciente Admin
     const formAdminPaciente = document.getElementById('formAdminNuevoPaciente');
     if (formAdminPaciente) {
       formAdminPaciente.onsubmit = async (e) => {
@@ -524,20 +521,19 @@ document.addEventListener('DOMContentLoaded', async () => {
           correo: '',
           direccion: '',
           nss: '',
-          dentista: docVal,
+          dentista: docVal, // Etiqueta del doctor asignado
           consultorio: consVal,
           saldo: 0.00
         };
 
         await window.StorageAdapter.savePaciente(nuevo);
-        showToast('¡Paciente registrado con éxito!', 'ok');
+        showToast(`Paciente registrado y asignado a ${docVal}`, 'ok');
         formAdminPaciente.reset();
         document.getElementById('modalAdminNuevoPaciente').classList.remove('open');
         await reloadAdminData();
       };
     }
 
-    // Formulario Agendar Cita Admin
     const formAdminCita = document.getElementById('formAdminNuevaCita');
     if (formAdminCita) {
       formAdminCita.onsubmit = async (e) => {
@@ -581,7 +577,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
     }
 
-    // Cobros en Caja Admin
     const btnCobrarSaldo = document.getElementById('btnAdminCobrarSaldo');
     const btnCobrarFisico = document.getElementById('btnAdminCobrarFisico');
     const btnPagarDespues = document.getElementById('btnAdminPagarDespues');
@@ -617,7 +612,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ==============================================================
-  // 3. ESTACIÓN CLÍNICA DEL DOCTOR (DOCTOR VIEW)
+  // 3. ESTACIÓN CLÍNICA DEL DOCTOR (DOCTOR VIEW & ACORDEÓN)
   // ==============================================================
 
   async function initDoctorWorkplace() {
@@ -626,14 +621,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const titleEl = document.getElementById('docClinicalTitle');
     const subEl = document.getElementById('docClinicalSubtitle');
-    if (titleEl) titleEl.textContent = `🩺 ${state.currentUser.nombre} - Estación de Trabajo Clínica`;
+    if (titleEl) {
+      titleEl.innerHTML = `
+        <svg class="icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>
+        ${state.currentUser.nombre} - Estación de Trabajo Clínica
+      `;
+    }
     if (subEl) subEl.textContent = `Consultorio ${state.currentUser.consultorio || '#3'} &middot; Especialidad: ${state.currentUser.especialidad || 'Odontología'}`;
 
     await reloadDoctorData();
   }
 
   async function reloadDoctorData() {
-    // Obtener ÚNICAMENTE pacientes asignados a este doctor
     const myPatients = await window.StorageAdapter.getPacientes(true);
     const quickSel = document.getElementById('docQuickPatientSelect');
 
@@ -656,30 +655,123 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
+    // Renderizar Acordeón de Expedientes Clínicos Deslizables
+    renderDoctorExpedientesAccordion(myPatients);
+
     if (state.currentCurp) {
-      await loadDoctorPatientDetails(state.currentCurp);
+      await loadDoctorPatientOdontogram(state.currentCurp);
     }
 
-    // Cargar citas de este doctor
     const myCitas = await window.StorageAdapter.getCitas(null, null);
     renderDoctorAgendaTable(myCitas);
   }
 
-  async function loadDoctorPatientDetails(curp) {
+  /**
+   * Renderiza la lista de expedientes clínicos en formato Acordeón:
+   * Inicialmente SOLO se ve: Nombre, Edad y Etiqueta del Doctor que lo registró.
+   * Al hacer clic, se deslizan suavemente todos los datos completos.
+   */
+  function renderDoctorExpedientesAccordion(patients) {
+    const container = document.getElementById('docExpedientesAccordionList');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (patients.length === 0) {
+      container.innerHTML = '<div style="padding:20px;text-align:center;color:#64748B;">No tienes pacientes registrados en tu consultorio.</div>';
+      return;
+    }
+
+    patients.forEach((p) => {
+      const card = document.createElement('div');
+      card.className = `patient-accordion-card ${p.curp === state.currentCurp ? 'open' : ''}`;
+      card.dataset.curp = p.curp;
+
+      // Header: Únicamente Nombre, Edad y Etiqueta del Doctor que lo registró
+      card.innerHTML = `
+        <div class="accordion-summary">
+          <div class="patient-summary-left">
+            <span class="patient-name-title">${p.nombre}</span>
+            <span class="patient-age-tag">${p.edad ? p.edad + ' años' : 'Edad no reg.'}</span>
+            <span class="patient-doctor-tag">
+              <svg class="icon-svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>
+              ${p.dentista} (${p.consultorio})
+            </span>
+          </div>
+          <div class="accordion-chevron-icon">
+            <svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+        </div>
+        <div class="accordion-details-drawer">
+          <div class="accordion-drawer-inner">
+            <div class="info-row"><span class="lbl">Teléfono de contacto:</span><span class="val">${p.telefono || 'Sin teléfono'}</span></div>
+            <div class="info-row"><span class="lbl">Correo electrónico:</span><span class="val">${p.correo || 'Sin correo'}</span></div>
+            <div class="info-row"><span class="lbl">Domicilio particular:</span><span class="val">${p.direccion || 'Sin domicilio'}</span></div>
+            <div class="info-row"><span class="lbl">CURP (Identificador):</span><span class="val" style="font-family:monospace;">${p.curp}</span></div>
+            <div class="info-row"><span class="lbl">Seguro Social (NSS):</span><span class="val">${p.nss || 'No especificado'}</span></div>
+            <div class="info-row"><span class="lbl">Consultorio Asignado:</span><span class="val">${p.consultorio}</span></div>
+            <div class="info-row"><span class="lbl">Saldo disponible a favor:</span><span class="val" style="color:#059669;font-weight:800;">$${Number(p.saldo || 0).toFixed(2)} MXN</span></div>
+            
+            <div style="display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap;">
+              <button type="button" class="btn-action primary sm btn-acc-ver-odontograma" data-curp="${p.curp}">
+                <svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C9 2 7 3.5 7 6c0 2 .5 4 1 6 .6 2.4 1 6 2 8 1 2 2 2 2 0 0-2 .5-4 1-5 .5 1 1 3 1 5 0 2 1 2 2 0 1-2 1.4-5.6 2-8 .5-2 1-4 1-6 0-2.5-2-4-5-4-1 0-1.5.5-2 .8C13.5 2.5 13 2 12 2z"/></svg>
+                Abrir Odontograma 360°
+              </button>
+              <button type="button" class="btn-action secondary sm btn-acc-agendar-cita" data-curp="${p.curp}">
+                <svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                Agendar Consulta
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Evento de clic para deslizar / expandir acordeón
+      const summaryHeader = card.querySelector('.accordion-summary');
+      summaryHeader.onclick = () => {
+        const isOpen = card.classList.contains('open');
+        container.querySelectorAll('.patient-accordion-card').forEach(c => c.classList.remove('open'));
+        if (!isOpen) {
+          card.classList.add('open');
+          state.currentCurp = p.curp;
+          state.currentPatient = p;
+          const quickSel = document.getElementById('docQuickPatientSelect');
+          if (quickSel) quickSel.value = p.curp;
+          loadDoctorPatientOdontogram(p.curp);
+        }
+      };
+
+      // Botón interno: Abrir Odontograma
+      const btnOdon = card.querySelector('.btn-acc-ver-odontograma');
+      if (btnOdon) {
+        btnOdon.onclick = (e) => {
+          e.stopPropagation();
+          state.currentCurp = p.curp;
+          const tabOdontograma = document.querySelector('.doctor-nav-tab[data-tab="doc-odontograma"]');
+          if (tabOdontograma) tabOdontograma.click();
+          loadDoctorPatientOdontogram(p.curp);
+        };
+      }
+
+      // Botón interno: Agendar Consulta
+      const btnAgenda = card.querySelector('.btn-acc-agendar-cita');
+      if (btnAgenda) {
+        btnAgenda.onclick = (e) => {
+          e.stopPropagation();
+          state.currentCurp = p.curp;
+          const tabAgenda = document.querySelector('.doctor-nav-tab[data-tab="doc-agenda"]');
+          if (tabAgenda) tabAgenda.click();
+        };
+      }
+
+      container.appendChild(card);
+    });
+  }
+
+  async function loadDoctorPatientOdontogram(curp) {
     state.currentCurp = curp;
     state.currentPatient = await window.StorageAdapter.getPaciente(curp);
     if (!state.currentPatient) return;
 
-    // Ficha clínica
-    setText('docViewNombre', state.currentPatient.nombre || '-');
-    setText('docViewEdad', state.currentPatient.edad ? state.currentPatient.edad + ' años' : '-');
-    setText('docViewTelefono', state.currentPatient.telefono || '-');
-    setText('docViewCorreo', state.currentPatient.correo || '-');
-    setText('docViewDireccion', state.currentPatient.direccion || '-');
-    setText('docViewCurp', state.currentPatient.curp || '-');
-    setText('docViewNss', state.currentPatient.nss || '-');
-
-    // Odontograma del paciente
     const odontogram = await window.StorageAdapter.getOdontograma(curp);
     renderArchesToOverlay(
       odontogram,
@@ -688,7 +780,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       curp
     );
 
-    // Historial clínico de este doctor
     const treatments = await window.StorageAdapter.getTratamientos(curp);
     const container = document.getElementById('docHistorialContainer');
     if (container) {
@@ -706,7 +797,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           item.innerHTML = `
             <div>
               <div style="font-weight:700;color:#0F172A;">${t.nombre}</div>
-              <div style="font-size:11px;color:#64748B;">Fecha: ${t.fecha} &middot; Costo: $${Number(t.costo).toFixed(2)} MXN</div>
+              <div style="font-size:11px;color:#64748B;">Fecha: ${t.fecha} &middot; Costo: $${Number(t.costo).toFixed(2)} MXN &middot; Doctor: ${t.dentista}</div>
             </div>
             <div>
               <span class="pill ${t.realizado ? 'ok' : 'warn'}"><i></i>${t.realizado ? 'Realizado' : 'Pendiente'}</span>
@@ -756,33 +847,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     const quickSel = document.getElementById('docQuickPatientSelect');
     if (quickSel) {
       quickSel.onchange = () => {
-        loadDoctorPatientDetails(quickSel.value);
+        state.currentCurp = quickSel.value;
+        loadDoctorPatientOdontogram(quickSel.value);
         showToast('Paciente en consulta actualizado', 'ok');
       };
     }
   }
 
   function setupDoctorForms() {
-    // Formulario Registrar Paciente Doctor
+    // Formulario Registrar Paciente Doctor (Coloca etiqueta automática al doctor que lo registró)
     const formDocPaciente = document.getElementById('formDocNuevoPaciente');
     if (formDocPaciente) {
       formDocPaciente.onsubmit = async (e) => {
         e.preventDefault();
         const curpVal = document.getElementById('docInpCurp').value.trim().toUpperCase();
         const nombreVal = document.getElementById('docInpNombre').value.trim();
+        const edadVal = Number(document.getElementById('docInpEdad').value) || 0;
+        const telVal = document.getElementById('docInpTel').value.trim();
+        const correoVal = document.getElementById('docInpCorreo').value.trim();
+        const dirVal = document.getElementById('docInpDireccion').value.trim();
 
         if (!curpVal || curpVal.length < 10) {
           showToast('Introduce una CURP válida', 'warn');
           return;
         }
 
+        // Se le asigna automáticamente la etiqueta del doctor activo
         const nuevo = {
           curp: curpVal,
           nombre: nombreVal,
-          edad: Number(document.getElementById('docInpEdad').value) || 0,
-          telefono: document.getElementById('docInpTel').value.trim(),
-          correo: '',
-          direccion: '',
+          edad: edadVal,
+          telefono: telVal,
+          correo: correoVal,
+          direccion: dirVal,
           nss: '',
           dentista: state.currentUser.nombre,
           consultorio: state.currentUser.consultorio || '#3',
@@ -790,7 +887,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         await window.StorageAdapter.savePaciente(nuevo);
-        showToast('Paciente registrado en tu consultorio', 'ok');
+        showToast(`Paciente registrado con etiqueta ${state.currentUser.nombre}`, 'ok');
         formDocPaciente.reset();
         state.currentCurp = curpVal;
         await reloadDoctorData();
@@ -843,7 +940,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ==============================================================
-  // 4. MOTOR DEL ODONTOGRAMA (32 PIEZAS ANATÓMICAS)
+  // 4. MOTOR DEL ODONTOGRAMA (32 PIEZAS - COORDENADAS PORCENTUALES)
   // ==============================================================
 
   function renderArchesToOverlay(odontogram, overlaySup, overlayInf, curp) {
@@ -854,8 +951,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     odontogram.forEach(d => {
       const mk = document.createElement('div');
       mk.className = `tooth-marker ${d.estado}`;
-      mk.style.left = `${d.x}px`;
-      mk.style.top = `${d.y}px`;
+      
+      // Coordenadas Porcentuales Proporcionales (Aspect Ratio 596 / 424)
+      mk.style.left = ((d.x / 596) * 100).toFixed(2) + '%';
+      mk.style.top = ((d.y / 424) * 100).toFixed(2) + '%';
+      
       mk.textContent = d.id;
       mk.title = `${d.nombre}: ${d.estado === 'realizado' ? 'Realizado' : 'Pendiente'} (${d.notas || 'Sin notas'})`;
       mk.dataset.id = d.id;
@@ -886,7 +986,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     modal.classList.add('open');
   }
 
-  // Guardar Cambios en Modal de Diente
   const btnSaveTooth = document.getElementById('btnSaveToothModal');
   if (btnSaveTooth) {
     btnSaveTooth.onclick = async () => {
@@ -907,7 +1006,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (state.currentUser.rol === 'admin') {
         await updateAdminInspectView(state.selectedDiente.curp);
       } else {
-        await loadDoctorPatientDetails(state.selectedDiente.curp);
+        await loadDoctorPatientOdontogram(state.selectedDiente.curp);
       }
     };
   }
@@ -919,7 +1018,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ==============================================================
-  // 5. EVENTOS GENERALES, AUTENTICACIÓN & HELPERS
+  // 5. EVENTOS GENERALES & HELPERS
   // ==============================================================
 
   function setupAuthEvents() {
@@ -932,7 +1031,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const res = await window.StorageAdapter.login(email, pass);
         if (res.success) {
-          showToast(`¡Bienvenido(a), ${res.user.nombre}!`, 'ok');
+          showToast(`Bienvenido(a), ${res.user.nombre}`, 'ok');
           checkUserSession();
         } else {
           showToast(res.error || 'Credenciales inválidas', 'bad');
@@ -940,7 +1039,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
     }
 
-    // Botones demo 1-clic
     document.querySelectorAll('.quick-user-btn').forEach(btn => {
       btn.onclick = async () => {
         const email = btn.dataset.email;
@@ -958,7 +1056,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
     });
 
-    // Cerrar sesión
     const btnLogout = document.getElementById('btnLogout');
     if (btnLogout) {
       btnLogout.onclick = () => {
